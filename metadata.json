@@ -1,0 +1,5 @@
+{
+  "name": "مولد الفواتير الذكي",
+  "description": "تطبيق لإدارة المخزون وإنشاء الفواتير عن طريق اختيار الأصناف بشكل عشوائي لتتناسب مع المبلغ الإجمالي المستهدف. / Application pour gérer l'inventaire et créer des factures en sélectionnant aléatoirement des articles pour correspondre à un montant total cible.",
+  "requestFramePermissions": []
+}
