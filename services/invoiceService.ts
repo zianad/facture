@@ -1,4 +1,3 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import type { Item } from '../types';
 
 // The local solver logic is now moved to a Web Worker to prevent UI blocking.
@@ -93,7 +92,7 @@ export const generateInvoiceItems = async (
   // Case 3: Both target amount AND item count are high.
   // This is the only scenario where we rely on the AI, as the problem's complexity
   // is too high for a browser-based exact solver.
-  console.log(`Problem is complex (High target and large inventory). Using Gemini AI.`);
+  console.log(`Problem is complex (High target and large inventory). Using secure serverless function.`);
   
   // OPTIMIZATION: Pre-filter items to reduce the search space for the AI.
   const relevantItems = availableItems.filter(item => item.price <= targetTotal);
@@ -108,69 +107,48 @@ export const generateInvoiceItems = async (
       price,
       quantity,
   }));
-
-  const prompt = `From the following list of inventory items, select a combination whose total price is as close as possible to ${targetTotal.toFixed(2)}. You must respect the available quantity for each item. The final total can be slightly higher or lower. Prioritize getting as close as possible. Return a JSON array of the selected item objects, where each object represents one unit. For example, if you use an item twice, include its object two times in the array. If the inventory is empty or no combination can be made, return an empty array.
-
-  Available Items: ${JSON.stringify(itemsForPrompt)}`;
-
+  
+  // The API call is now made to our secure backend function, not directly to Google.
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
     
-    // OPTIMIZATION: Add a timeout to the AI request.
-    const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('AI request timed out')), AI_TIMEOUT_MS)
-    );
-
-    const aiPromise = ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              id: { type: Type.STRING },
-              name: { type: Type.STRING },
-              price: { type: Type.NUMBER },
-            },
-          },
-        },
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        itemsForPrompt,
+        targetTotal,
+      }),
+      signal: controller.signal,
     });
-
-    const response = await Promise.race([aiPromise, timeoutPromise]);
-
-    const jsonText = response.text.trim();
-    if (!jsonText) {
-      return null;
-    }
     
-    let selectedItemsFromAI: { id: string; price: number }[] = [];
-    try {
-        selectedItemsFromAI = JSON.parse(jsonText);
-    } catch(e) {
-        console.error("Failed to parse AI JSON response:", jsonText);
-        return null; // AI response was not valid JSON
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Request failed with status ${response.status}`);
     }
-    
+
+    const selectedItemsFromAI: { id: string; price: number }[] = await response.json();
+
     if (!Array.isArray(selectedItemsFromAI)) {
-        console.error("AI response is not an array");
+        console.error("API response is not an array");
         return null;
     }
-
+    
     if (selectedItemsFromAI.length === 0) {
         return null; // AI explicitly said no combination found.
     }
-
 
     // --- VALIDATION ---
     const selectedItemCounts: { [id: string]: number } = {};
 
     for (const aiItem of selectedItemsFromAI) {
       if (!aiItem.id || typeof aiItem.price !== 'number') {
-        console.error("AI result validation failed: Malformed item object from AI.", aiItem);
+        console.error("API result validation failed: Malformed item object from API.", aiItem);
         return null;
       }
       selectedItemCounts[aiItem.id] = (selectedItemCounts[aiItem.id] || 0) + 1;
@@ -185,11 +163,11 @@ export const generateInvoiceItems = async (
       const count = selectedItemCounts[id];
 
       if (!originalItem) {
-        console.error(`AI result validation failed: Item with id ${id} not found in inventory.`);
+        console.error(`API result validation failed: Item with id ${id} not found in inventory.`);
         return null;
       }
       if (originalItem.quantity < count) {
-        console.error(`AI result validation failed: Quantity exceeded for item ${originalItem.name}. Available: ${originalItem.quantity}, Requested: ${count}`);
+        console.error(`API result validation failed: Quantity exceeded for item ${originalItem.name}. Available: ${originalItem.quantity}, Requested: ${count}`);
         return null;
       }
       
@@ -201,7 +179,11 @@ export const generateInvoiceItems = async (
     return finalItems.length > 0 ? finalItems : null;
 
   } catch (error) {
-    console.error("Error calling Gemini API or parsing response:", error);
+     if (error instanceof Error && error.name === 'AbortError') {
+        console.error("Error: API request timed out.");
+    } else {
+        console.error("Error calling serverless function or parsing response:", error);
+    }
     return null;
   }
 };

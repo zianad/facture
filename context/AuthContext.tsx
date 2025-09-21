@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import type { User } from '../types';
 import { db } from '../services/db';
-import { useLiveQuery } from '@dexie/react-hooks';
+import { useLiveQuery } from 'dexie-react-hooks';
 
 interface AuthContextType {
   currentUser: User | null;
