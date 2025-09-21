@@ -6,7 +6,7 @@ interface LoginPageProps {
   navigateToAdmin: () => void;
 }
 
-const SUPER_ADMIN_PASSWORD = 'Lunallena11241984';
+const SUPER_ADMIN_PASSWORD = '0000';
 
 const LoginPage: React.FC<LoginPageProps> = ({ navigateToAdmin }) => {
   const [password, setPassword] = useState('');
