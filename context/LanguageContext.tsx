@@ -1,48 +1,37 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 
+// Import translations directly to prevent race conditions
+import arTranslations from '../locales/ar.json';
+import frTranslations from '../locales/fr.json';
+
 type Language = 'ar' | 'fr';
 
 interface LanguageContextType {
   language: Language;
   changeLanguage: (lang: Language) => void;
-  translations: Record<string, string>;
-  // FIX: Update the 't' function signature to accept an optional 'options' object for interpolation and a `forceLang` override.
   t: (key: string, options?: { [key: string]: string | number }, forceLang?: Language) => string;
 }
 
 export const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+// The loaded translations can be stored in a constant outside the component
+const translationsData = {
+  ar: arTranslations as Record<string, string>,
+  fr: frTranslations as Record<string, string>,
+};
+
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguage] = useState<Language>('ar');
-  const [translationsData, setTranslationsData] = useState<Record<Language, Record<string, string>>>({ ar: {}, fr: {} });
+  const [language, setLanguage] = useState<Language>('fr');
 
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
   }, [language]);
 
-  useEffect(() => {
-    const fetchTranslations = async () => {
-      try {
-        const [arResponse, frResponse] = await Promise.all([
-          fetch('./locales/ar.json'),
-          fetch('./locales/fr.json')
-        ]);
-        const ar = await arResponse.json();
-        const fr = await frResponse.json();
-        setTranslationsData({ ar, fr });
-      } catch (error) {
-        console.error("Failed to load translation files", error);
-      }
-    };
-    fetchTranslations();
-  }, []); // Run only once
-
   const changeLanguage = (lang: Language) => {
     setLanguage(lang);
   };
 
-  // FIX: Update the 't' function to handle an optional `forceLang` parameter to override the current language.
   const t = (key: string, options?: { [key: string]: string | number }, forceLang?: Language): string => {
     const langToUse = forceLang || language;
     const langTranslations = translationsData[langToUse];
@@ -59,7 +48,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   return (
-    <LanguageContext.Provider value={{ language, changeLanguage, translations: translationsData[language] || {}, t }}>
+    <LanguageContext.Provider value={{ language, changeLanguage, t }}>
       {children}
     </LanguageContext.Provider>
   );
