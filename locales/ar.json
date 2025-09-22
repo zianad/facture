@@ -127,11 +127,11 @@
   "deleteButton": "حذف",
   "noInvoicesFound": "لا توجد فواتير محفوظة.",
   "confirmDeleteInvoice": "هل أنت متأكد من أنك تريد حذف هذه الفاتورة؟",
-  "importFromImageButton": "استيراد من صورة",
-  "importInstructions": "قم بتحميل صورة من جدول البيانات الخاص بك (png، jpg). الأعمدة المطلوبة: REFERENCE, DESIGNATION, QUANTITE, PRIX UNITAIRE.",
-  "importLoading": "جاري تحليل الصورة واستخراج البيانات...",
+  "importFromImageButton": "استيراد من ملف إكسل",
+  "importInstructions": "قم بتحميل ملف إكسل (.xlsx, .xls). يجب أن يحتوي الملف على أعمدة بالأسماء التالية: REFERENCE, DESIGNATION, QUANTITE, PRIX UNITAIRE.",
+  "importLoading": "جاري معالجة الملف واستخراج البيانات...",
   "importSuccess": "تم استيراد {count} سلعة بنجاح.",
   "importPartialSuccess": "تم استيراد {successCount} سلعة. تم تخطي {skippedCount} صفًا بسبب أخطاء.",
-  "importError": "فشل في معالجة الصورة. يرجى التأكد من أنها واضحة وتحتوي على الأعمدة المطلوبة.",
-  "importNoItemsFound": "لم يتم العثور على سلع صالحة في الصورة."
+  "importError": "فشل في معالجة الملف. يرجى التأكد من أن الملف بالتنسيق الصحيح ويحتوي على الأعمدة المطلوبة.",
+  "importNoItemsFound": "لم يتم العثور على سلع صالحة في الملف."
 }

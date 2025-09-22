@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import type { Item } from '../types';
 import { useTranslation } from '../context/LanguageContext';
 
@@ -276,89 +277,100 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, addMu
         }
     };
 
-    const fileToBase64 = (file: File): Promise<{mimeType: string, data: string}> => {
-      return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => {
-              const result = reader.result as string;
-              const [, data] = result.split(',');
-              const mimeType = result.match(/:(.*?);/)?.[1] || 'application/octet-stream';
-              resolve({ mimeType, data });
-          };
-          reader.onerror = error => reject(error);
-      });
-    };
-
-    const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
         setIsImporting(true);
         setImportResult(null);
 
-        try {
-            const { mimeType, data } = await fileToBase64(file);
-            
-            const response = await fetch('/api/analyze-image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mimeType, data }),
-            });
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = e.target?.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const jsonResult = XLSX.utils.sheet_to_json(worksheet, {
+                    header: 1,
+                    blankrows: false,
+                }) as (string | number)[][];
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `Request failed with status ${response.status}`);
-            }
+                if (jsonResult.length < 2) {
+                    throw new Error("Sheet is empty or has only a header.");
+                }
 
-            const jsonResult = await response.json();
-            
-            if (!Array.isArray(jsonResult)) {
-                throw new Error("AI response was not a JSON array.");
-            }
+                const headerRow = jsonResult[0] as string[];
+                const dataRows = jsonResult.slice(1);
 
-            const validItems: Omit<Item, 'id' | 'userId'>[] = [];
-            let skippedCount = 0;
+                const normalize = (str: string) => str ? String(str).trim().toUpperCase() : '';
+                const headers = headerRow.map(normalize);
 
-            for (const item of jsonResult) {
-                const price = parseFloat(item.price);
-                const quantity = parseInt(item.quantity, 10);
+                const refIndex = headers.indexOf('REFERENCE');
+                const nameIndex = headers.indexOf('DESIGNATION');
+                const qtyIndex = headers.indexOf('QUANTITE');
+                const priceIndex = headers.indexOf('PRIX UNITAIRE');
 
-                if (item.reference && item.name && !isNaN(price) && price > 0 && !isNaN(quantity) && quantity >= 0) {
-                    validItems.push({
-                        reference: String(item.reference),
-                        name: String(item.name),
-                        category: String(item.name), // Using name as category by default
-                        price,
-                        quantity,
-                        purchaseDate: new Date().toISOString().split('T')[0] // Default purchase date
-                    });
+                if (refIndex === -1 || nameIndex === -1 || qtyIndex === -1 || priceIndex === -1) {
+                    throw new Error(`Missing one or more required columns: REFERENCE, DESIGNATION, QUANTITE, PRIX UNITAIRE`);
+                }
+
+                const validItems: Omit<Item, 'id' | 'userId'>[] = [];
+                let skippedCount = 0;
+
+                for (const row of dataRows) {
+                    const price = parseFloat(String(row[priceIndex] || '0').replace(',', '.'));
+                    const quantity = parseInt(String(row[qtyIndex] || '0'), 10);
+                    const reference = String(row[refIndex] || '');
+                    const name = String(row[nameIndex] || '');
+
+                    if (reference && name && !isNaN(price) && price > 0 && !isNaN(quantity) && quantity >= 0) {
+                        validItems.push({
+                            reference,
+                            name,
+                            category: name,
+                            price,
+                            quantity,
+                            purchaseDate: new Date().toISOString().split('T')[0]
+                        });
+                    } else {
+                        skippedCount++;
+                    }
+                }
+
+                if (validItems.length > 0) {
+                    addMultipleItems(validItems);
+                }
+
+                if (skippedCount > 0) {
+                    setImportResult({ type: 'partial', message: t('importPartialSuccess', { successCount: validItems.length, skippedCount: skippedCount }) });
+                } else if (validItems.length > 0) {
+                    setImportResult({ type: 'success', message: t('importSuccess', { count: validItems.length }) });
                 } else {
-                    skippedCount++;
+                    setImportResult({ type: 'info', message: t('importNoItemsFound') });
+                }
+
+            } catch (error) {
+                console.error("Error processing Excel file:", error);
+                setImportResult({ type: 'error', message: t('importError') });
+            } finally {
+                setIsImporting(false);
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
                 }
             }
+        };
 
-            if (validItems.length > 0) {
-                addMultipleItems(validItems);
-            }
-
-            if (skippedCount > 0) {
-                setImportResult({ type: 'partial', message: t('importPartialSuccess', { successCount: validItems.length, skippedCount: skippedCount }) });
-            } else if (validItems.length > 0) {
-                setImportResult({ type: 'success', message: t('importSuccess', { count: validItems.length }) });
-            } else {
-                setImportResult({ type: 'info', message: t('importNoItemsFound') });
-            }
-
-        } catch (error) {
-            console.error("Error during image import:", error);
+        reader.onerror = (error) => {
+            console.error("File reading error:", error);
             setImportResult({ type: 'error', message: t('importError') });
-        } finally {
             setIsImporting(false);
             if (fileInputRef.current) {
-                fileInputRef.current.value = ""; // Reset file input
+                fileInputRef.current.value = "";
             }
-        }
+        };
+
+        reader.readAsBinaryString(file);
     };
     
   return (
@@ -406,7 +418,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, addMu
       <div className="p-6 bg-white rounded-lg shadow-sm">
         <h2 className="text-xl font-bold mb-2 text-slate-700">{t('importFromImageButton')}</h2>
         <p className="text-sm text-slate-500 mb-4">{t('importInstructions')}</p>
-        <input type="file" ref={fileInputRef} onChange={handleFileImport} accept="image/*" className="hidden" aria-label={t('importFromImageButton')} />
+        <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".xlsx, .xls" className="hidden" aria-label={t('importFromImageButton')} />
         <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="bg-teal-600 text-white p-2 rounded-md hover:bg-teal-700 transition-colors flex items-center justify-center disabled:bg-slate-400 disabled:cursor-wait">
           <UploadIcon />
           {t('importFromImageButton')}
