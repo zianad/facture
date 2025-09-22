@@ -1,3 +1,6 @@
+// FIX: Combined the Dexie and Table imports into a single statement. This can resolve
+// module resolution issues in some bundlers/TypeScript configurations, ensuring that
+// the correct type definition for the Dexie class (including the 'version' method) is loaded.
 import Dexie, { type Table } from 'dexie';
 import type { User, Item, InvoiceData } from '../types';
 

@@ -126,5 +126,12 @@
   "viewButton": "Voir",
   "deleteButton": "Supprimer",
   "noInvoicesFound": "Aucune facture enregistrée.",
-  "confirmDeleteInvoice": "Êtes-vous sûr de vouloir supprimer cette facture ?"
+  "confirmDeleteInvoice": "Êtes-vous sûr de vouloir supprimer cette facture ?",
+  "importFromImageButton": "Importer depuis une Image",
+  "importInstructions": "Téléchargez une image de votre feuille de calcul (.png, .jpg). Colonnes requises : REFERENCE, DESIGNATION, QUANTITE, PRIX UNITAIRE.",
+  "importLoading": "Analyse de l'image et extraction des données en cours...",
+  "importSuccess": "{count} articles ont été importés avec succès.",
+  "importPartialSuccess": "{successCount} articles importés. {skippedCount} lignes ignorées en raison d'erreurs.",
+  "importError": "Échec du traitement de l'image. Veuillez vous assurer qu'elle est claire et qu'elle contient les colonnes requises.",
+  "importNoItemsFound": "Aucun article valide n'a été trouvé dans l'image."
 }

@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "api/generate.ts": {
+      "maxDuration": 90,
+      "memory": 1024
+    },
+    "api/analyze-image.ts": {
+      "maxDuration": 90,
+      "memory": 1024
+    }
+  }
+}

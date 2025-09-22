@@ -54,6 +54,17 @@ const App: React.FC = () => {
     await db.inventory.add(newItem);
     setInventory(prev => [...prev, newItem]);
   };
+
+  const addMultipleItemsToInventory = async (items: Omit<Item, 'id' | 'userId'>[]) => {
+    if (!currentUser || items.length === 0) return;
+    const newItems: Item[] = items.map(item => ({
+      ...item,
+      id: `${Date.now()}-${Math.random()}-${item.reference}`,
+      userId: currentUser.id,
+    }));
+    await db.inventory.bulkAdd(newItems);
+    setInventory(prev => [...prev, ...newItems]);
+  };
   
   const removeItemFromInventory = async (id: string) => {
     await db.inventory.delete(id);
@@ -101,6 +112,7 @@ const App: React.FC = () => {
           <InventoryPage
             inventory={inventory}
             addItem={addItemToInventory}
+            addMultipleItems={addMultipleItemsToInventory}
             removeItem={removeItemFromInventory}
             updateItem={updateItemInInventory}
             navigateToInvoice={() => setCurrentPage('invoice')}

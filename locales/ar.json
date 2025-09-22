@@ -126,5 +126,12 @@
   "viewButton": "عرض",
   "deleteButton": "حذف",
   "noInvoicesFound": "لا توجد فواتير محفوظة.",
-  "confirmDeleteInvoice": "هل أنت متأكد من أنك تريد حذف هذه الفاتورة؟"
+  "confirmDeleteInvoice": "هل أنت متأكد من أنك تريد حذف هذه الفاتورة؟",
+  "importFromImageButton": "استيراد من صورة",
+  "importInstructions": "قم بتحميل صورة من جدول البيانات الخاص بك (png، jpg). الأعمدة المطلوبة: REFERENCE, DESIGNATION, QUANTITE, PRIX UNITAIRE.",
+  "importLoading": "جاري تحليل الصورة واستخراج البيانات...",
+  "importSuccess": "تم استيراد {count} سلعة بنجاح.",
+  "importPartialSuccess": "تم استيراد {successCount} سلعة. تم تخطي {skippedCount} صفًا بسبب أخطاء.",
+  "importError": "فشل في معالجة الصورة. يرجى التأكد من أنها واضحة وتحتوي على الأعمدة المطلوبة.",
+  "importNoItemsFound": "لم يتم العثور على سلع صالحة في الصورة."
 }

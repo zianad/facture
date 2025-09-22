@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import type { Item } from '../types';
 import { useTranslation } from '../context/LanguageContext';
 
 interface InventoryPageProps {
   inventory: Item[];
   addItem: (item: Omit<Item, 'id' | 'userId'>) => void;
+  addMultipleItems: (items: Omit<Item, 'id' | 'userId'>[]) => void;
   removeItem: (id: string) => void;
   updateItem: (id: string, updatedData: Partial<Omit<Item, 'id' | 'userId'>>) => void;
   navigateToInvoice: () => void;
@@ -15,6 +16,13 @@ const PlusIcon = () => (
         <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
     </svg>
 );
+
+const UploadIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mx-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+    </svg>
+);
+
 
 const TrashIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -78,7 +86,7 @@ const formatDate = (dateString: string): string => {
     }
 };
 
-const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, removeItem, updateItem, navigateToInvoice }) => {
+const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, addMultipleItems, removeItem, updateItem, navigateToInvoice }) => {
   const { t } = useTranslation();
   const [newItem, setNewItem] = useState({ reference: '', name: '', category: '', price: '', quantity: '1', purchaseDate: new Date().toISOString().split('T')[0] });
   const [searchTerm, setSearchTerm] = useState('');
@@ -89,6 +97,9 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, remov
   const [editFormData, setEditFormData] = useState({ reference: '', name: '', category: '', price: '', quantity: '', purchaseDate: '' });
   const [editErrors, setEditErrors] = useState({ reference: '', name: '', category: '', price: '', quantity: '', purchaseDate: '' });
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ type: 'success' | 'partial' | 'error' | 'info', message: string } | null>(null);
 
   const inventorySummary = useMemo(() => {
     const totalUniqueItems = inventory.length;
@@ -238,7 +249,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, remov
             isValid = false;
         }
         const quantity = parseInt(editFormData.quantity, 10);
-        if (isNaN(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
+        if (isNaN(quantity) || quantity < 0 || !Number.isInteger(quantity)) {
             newErrors.quantity = t('errorInvalidQuantity');
             isValid = false;
         }
@@ -265,7 +276,91 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, remov
         }
     };
 
+    const fileToBase64 = (file: File): Promise<{mimeType: string, data: string}> => {
+      return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => {
+              const result = reader.result as string;
+              const [, data] = result.split(',');
+              const mimeType = result.match(/:(.*?);/)?.[1] || 'application/octet-stream';
+              resolve({ mimeType, data });
+          };
+          reader.onerror = error => reject(error);
+      });
+    };
 
+    const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        setImportResult(null);
+
+        try {
+            const { mimeType, data } = await fileToBase64(file);
+            
+            const response = await fetch('/api/analyze-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mimeType, data }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Request failed with status ${response.status}`);
+            }
+
+            const jsonResult = await response.json();
+            
+            if (!Array.isArray(jsonResult)) {
+                throw new Error("AI response was not a JSON array.");
+            }
+
+            const validItems: Omit<Item, 'id' | 'userId'>[] = [];
+            let skippedCount = 0;
+
+            for (const item of jsonResult) {
+                const price = parseFloat(item.price);
+                const quantity = parseInt(item.quantity, 10);
+
+                if (item.reference && item.name && !isNaN(price) && price > 0 && !isNaN(quantity) && quantity >= 0) {
+                    validItems.push({
+                        reference: String(item.reference),
+                        name: String(item.name),
+                        category: String(item.name), // Using name as category by default
+                        price,
+                        quantity,
+                        purchaseDate: new Date().toISOString().split('T')[0] // Default purchase date
+                    });
+                } else {
+                    skippedCount++;
+                }
+            }
+
+            if (validItems.length > 0) {
+                addMultipleItems(validItems);
+            }
+
+            if (skippedCount > 0) {
+                setImportResult({ type: 'partial', message: t('importPartialSuccess', { successCount: validItems.length, skippedCount: skippedCount }) });
+            } else if (validItems.length > 0) {
+                setImportResult({ type: 'success', message: t('importSuccess', { count: validItems.length }) });
+            } else {
+                setImportResult({ type: 'info', message: t('importNoItemsFound') });
+            }
+
+        } catch (error) {
+            console.error("Error during image import:", error);
+            setImportResult({ type: 'error', message: t('importError') });
+        } finally {
+            setIsImporting(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = ""; // Reset file input
+            }
+        }
+    };
+    
   return (
     <div className="space-y-8">
       <div className="p-6 bg-white rounded-lg shadow-sm">
@@ -306,6 +401,27 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, remov
             {t('addItemButton')}
           </button>
         </form>
+      </div>
+      
+      <div className="p-6 bg-white rounded-lg shadow-sm">
+        <h2 className="text-xl font-bold mb-2 text-slate-700">{t('importFromImageButton')}</h2>
+        <p className="text-sm text-slate-500 mb-4">{t('importInstructions')}</p>
+        <input type="file" ref={fileInputRef} onChange={handleFileImport} accept="image/*" className="hidden" aria-label={t('importFromImageButton')} />
+        <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="bg-teal-600 text-white p-2 rounded-md hover:bg-teal-700 transition-colors flex items-center justify-center disabled:bg-slate-400 disabled:cursor-wait">
+          <UploadIcon />
+          {t('importFromImageButton')}
+        </button>
+        {isImporting && <p className="text-blue-600 text-sm mt-2 animate-pulse" aria-live="polite">{t('importLoading')}</p>}
+        {importResult && (
+          <div role="alert" className={`mt-4 p-3 rounded-md text-sm ${
+              importResult.type === 'success' ? 'bg-green-100 text-green-800' :
+              importResult.type === 'partial' ? 'bg-yellow-100 text-yellow-800' :
+              importResult.type === 'info' ? 'bg-blue-100 text-blue-800' :
+              'bg-red-100 text-red-800'
+            }`}>
+            {importResult.message}
+          </div>
+        )}
       </div>
 
        <div className="p-6 bg-white rounded-lg shadow-sm">
@@ -386,7 +502,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, remov
                             {editErrors.price && <p className="text-red-500 text-xs mt-1">{editErrors.price}</p>}
                         </td>
                         <td className="py-2 px-4 border-b">
-                            <input type="number" name="quantity" value={editFormData.quantity} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.quantity ? 'border-red-500' : 'border-slate-300'} bg-white rounded-md text-sm`} min="1" step="1"/>
+                            <input type="number" name="quantity" value={editFormData.quantity} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.quantity ? 'border-red-500' : 'border-slate-300'} bg-white rounded-md text-sm`} min="0" step="1"/>
                             {editErrors.quantity && <p className="text-red-500 text-xs mt-1">{editErrors.quantity}</p>}
                         </td>
                         <td className="py-2 px-4 border-b">
