@@ -73,4 +73,6 @@ export default async (req: Request): Promise<Response> => {
   } catch (error) {
     console.error("Error in serverless function:", error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred with the AI service.';
-    return new Response(JSON.stringify({ error: 'Failed to generate invoice items.', details: errorMessage }), { status: 500, headers: { 'Content-
+    return new Response(JSON.stringify({ error: 'Failed to generate invoice items.', details: errorMessage }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+};
