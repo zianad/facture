@@ -84,7 +84,7 @@ const App: React.FC = () => {
      if (!currentUser) return null;
      const newInvoice: InvoiceData = {
         ...invoice,
-        id: `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100).padStart(3, '0')}`,
+        id: `internal-${Date.now()}-${Math.random()}`,
         userId: currentUser.id
      };
     await db.invoices.add(newInvoice);

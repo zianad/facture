@@ -105,7 +105,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, user }) => {
                 <div className="grid grid-cols-2 gap-8 mb-10">
                     <div className="text-left">
                         <h2 className="text-xl font-bold mb-2">{tFr('invoiceTitle')}</h2>
-                        <p><span className="font-semibold">{tFr('invoiceNumberLabel')}:</span> {invoice.id}</p>
+                        <p><span className="font-semibold">{tFr('invoiceNumberLabel')}:</span> {invoice.invoiceNumber}</p>
                         <p><span className="font-semibold">{tFr('invoiceDateLabel')}:</span> {formatDate(invoice.invoiceDate)}</p>
                     </div>
                      <div className="text-right">
@@ -182,7 +182,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, user }) => {
 const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, navigateToInventory, invoices, addInvoice, removeInvoice }) => {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
-  const [details, setDetails] = useState({ customerName: '', totalAmount: '', invoiceDate: new Date().toISOString().split('T')[0] });
+  const [details, setDetails] = useState({ invoiceNumber: '', customerName: '', totalAmount: '', invoiceDate: new Date().toISOString().split('T')[0] });
   const [generatedInvoice, setGeneratedInvoice] = useState<InvoiceData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -220,6 +220,10 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, navigateToInventor
     setError(null);
     setGeneratedInvoice(null);
     
+    if (!details.invoiceNumber.trim()) {
+        setError(t('errorInvoiceNumberRequired'));
+        return;
+    }
     if (!details.customerName.trim()) {
         setError(t('errorCustomerNameRequired'));
         return;
@@ -243,6 +247,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, navigateToInventor
     setIsLoading(false);
     if (items) {
       const invoiceData: Omit<InvoiceData, 'id' | 'userId'> = {
+        invoiceNumber: details.invoiceNumber,
         customerName: details.customerName,
         invoiceDate: details.invoiceDate,
         items: items,
@@ -276,7 +281,11 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, navigateToInventor
     <div className="space-y-8">
       <div className="p-6 bg-white rounded-lg shadow-sm">
         <h2 className="text-xl font-bold mb-4 text-slate-700">{t('createInvoiceTitle')}</h2>
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end" noValidate>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end" noValidate>
+           <div className="flex flex-col">
+            <label htmlFor="invoiceNumber" className="mb-1 text-sm font-medium text-slate-600">{t('invoiceNumberLabel')}</label>
+            <input type="text" id="invoiceNumber" name="invoiceNumber" value={details.invoiceNumber} onChange={handleInputChange} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+          </div>
           <div className="flex flex-col">
             <label htmlFor="customerName" className="mb-1 text-sm font-medium text-slate-600">{t('customerNameLabel')}</label>
             <input type="text" id="customerName" name="customerName" value={details.customerName} onChange={handleInputChange} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
@@ -322,7 +331,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, navigateToInventor
           <table className="min-w-full bg-white">
             <thead className="bg-slate-100">
               <tr>
-                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('historyInvoiceID')}</th>
+                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('invoiceNumberLabel')}</th>
                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('historyCustomerName')}</th>
                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('historyDate')}</th>
                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('historyTotalAmount')}</th>
@@ -332,7 +341,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, navigateToInventor
             <tbody>
               {invoices.length > 0 ? invoices.map(inv => (
                 <tr key={inv.id} className="hover:bg-slate-50">
-                  <td className="py-2 px-4 border-b text-slate-900">{inv.id}</td>
+                  <td className="py-2 px-4 border-b text-slate-900">{inv.invoiceNumber}</td>
                   <td className="py-2 px-4 border-b text-slate-900">{inv.customerName}</td>
                   <td className="py-2 px-4 border-b text-slate-900">{formatDate(inv.invoiceDate)}</td>
                   <td className="py-2 px-4 border-b text-slate-900">{inv.totalAmount.toFixed(2)}</td>

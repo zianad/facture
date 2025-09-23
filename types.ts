@@ -14,7 +14,8 @@ export interface InvoiceData {
   invoiceDate: string;
   items: Item[];
   totalAmount: number;
-  id: string;
+  id: string; // Internal unique ID
+  invoiceNumber: string; // User-facing invoice number
   userId: string;
 }
 
