@@ -29,19 +29,6 @@ const formatDate = (dateString: string): string => {
 };
 
 // --- Icons ---
-const TrashIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-    </svg>
-);
-
-const EyeIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-    </svg>
-);
-
 const PrintIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
         <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm-2 5a1 1 0 011 1v4a1 1 0 11-2 0v-4a1 1 0 011-1z" clipRule="evenodd" />
@@ -120,15 +107,15 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ invoice, comp
                         {/* Client Info - Placed on the right */}
                         <div className="flex justify-end mb-10">
                             <div className="text-right">
-                                <p className="font-semibold text-slate-700">{t('customerNameLabel')}: <span className="font-bold">{invoice.customerName}</span></p>
+                                <p className="font-semibold text-slate-700">{t('customerNameLabel', {}, 'fr')}: <span className="font-bold">{invoice.customerName}</span></p>
                             </div>
                         </div>
                         
                         {/* Invoice Details - Left Aligned */}
                         <div className="border-b pb-8 mb-8">
                             <h3 className="text-2xl font-bold text-blue-700 mb-2">{t('invoiceTitle')}</h3>
-                            <p className="font-semibold text-slate-700">{t('invoiceNumberLabel')}: <span className="font-normal">{invoice.invoiceNumber}</span></p>
-                            <p className="font-semibold text-slate-700">{t('invoiceDateLabel')}: <span className="font-normal">{formatDate(invoice.invoiceDate)}</span></p>
+                            <p className="font-semibold text-slate-700">{t('invoiceNumberLabel', {}, 'fr')}: <span className="font-normal">{invoice.invoiceNumber}</span></p>
+                            <p className="font-semibold text-slate-700">{t('invoiceDateLabel', {}, 'fr')}: <span className="font-normal">{formatDate(invoice.invoiceDate)}</span></p>
                         </div>
                     </div>
                     
@@ -191,6 +178,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoi
     const { t } = useTranslation();
     const { currentUser } = useAuth();
     
+    const [invoiceNumber, setInvoiceNumber] = useState('');
     const [customerName, setCustomerName] = useState('');
     const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
     const [targetTotal, setTargetTotal] = useState('');
@@ -214,15 +202,18 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoi
         setError('');
         setGeneratedItems(null);
 
-        const total = parseFloat(targetTotal);
-        if (isNaN(total) || total <= 0) {
+        const totalTTC = parseFloat(targetTotal);
+        if (isNaN(totalTTC) || totalTTC <= 0) {
             setError(t('errorInvalidAmount'));
             setIsLoading(false);
             return;
         }
 
+        const tvaRate = 0.20;
+        const totalHT = totalTTC / (1 + tvaRate);
+
         try {
-            const items = await generateInvoiceItems(inventory, total, invoiceDate);
+            const items = await generateInvoiceItems(inventory, totalHT, invoiceDate);
             if (items && items.length > 0) {
                 setGeneratedItems(items);
             } else {
@@ -237,12 +228,16 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoi
     };
 
     const handleSaveInvoice = async () => {
-        if (!generatedItems || generatedItems.length === 0) {
-            setError(t('errorNoItemsToSave'));
+        if (!invoiceNumber.trim()) {
+            setError(t('errorInvoiceNumberRequired'));
             return;
         }
         if (!customerName.trim()) {
             setError(t('errorCustomerNameRequired'));
+            return;
+        }
+        if (!generatedItems || generatedItems.length === 0) {
+            setError(t('errorNoItemsToSave'));
             return;
         }
 
@@ -253,11 +248,12 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoi
             invoiceDate,
             items: generatedItems,
             totalAmount,
-            invoiceNumber: `INV-${Date.now()}`,
+            invoiceNumber,
         };
         
         const newInvoice = await addInvoice(newInvoiceData);
         if (newInvoice) {
+            setInvoiceNumber('');
             setCustomerName('');
             setTargetTotal('');
             setGeneratedItems(null);
@@ -278,18 +274,22 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoi
             {/* --- Invoice Generation --- */}
             <div className="p-6 bg-white rounded-lg shadow-sm">
                 <h2 className="text-xl font-bold mb-4 text-slate-700">{t('createInvoiceTitle')}</h2>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                    <div className="flex flex-col">
+                        <label htmlFor="invoiceNumber" className="mb-1 text-sm font-medium text-slate-600">{t('invoiceNumberLabel')}</label>
+                        <input type="text" id="invoiceNumber" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
+                    </div>
                     <div className="flex flex-col">
                         <label htmlFor="customerName" className="mb-1 text-sm font-medium text-slate-600">{t('customerNameLabel')}</label>
                         <input type="text" id="customerName" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
                     </div>
+                     <div className="flex flex-col">
+                        <label htmlFor="targetTotal" className="mb-1 text-sm font-medium text-slate-600">{t('targetTotalLabel')}</label>
+                        <input type="number" id="targetTotal" value={targetTotal} onChange={(e) => setTargetTotal(e.target.value)} min="0" step="0.01" className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" placeholder={t('amountPlaceholder')} />
+                    </div>
                     <div className="flex flex-col">
                         <label htmlFor="invoiceDate" className="mb-1 text-sm font-medium text-slate-600">{t('invoiceDateLabel')}</label>
                         <input type="date" id="invoiceDate" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div className="flex flex-col">
-                        <label htmlFor="targetTotal" className="mb-1 text-sm font-medium text-slate-600">{t('targetTotalLabel')}</label>
-                        <input type="number" id="targetTotal" value={targetTotal} onChange={(e) => setTargetTotal(e.target.value)} min="0" step="0.01" className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" placeholder={t('amountPlaceholder')} />
                     </div>
                     <button onClick={handleGenerateItems} disabled={isLoading || inventory.length === 0} className="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition-colors disabled:bg-slate-400 disabled:cursor-not-allowed">
                         {isLoading ? t('generatingButton') : t('generateItemsButton')}
@@ -326,7 +326,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoi
                     <div className="mt-4 flex justify-between items-center">
                         <p className="text-lg font-bold text-slate-800">
                             {t('totalAmountLabel')}: {calculatedTotal.toFixed(2)}
-                            <span className="text-sm font-normal text-slate-500 ml-2">({t('totalDifferenceLabel')}: {(calculatedTotal - parseFloat(targetTotal || '0')).toFixed(2)})</span>
+                            <span className="text-sm font-normal text-slate-500 ml-2">({t('totalDifferenceLabel')}: {(calculatedTotal - parseFloat(targetTotal || '0') / 1.2).toFixed(2)})</span>
                         </p>
                         <button onClick={handleSaveInvoice} className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors">
                             {t('saveInvoiceButton')}
@@ -347,7 +347,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoi
                             <tr>
                                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('invoiceNumberLabel')}</th>
                                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('customerNameLabel')}</th>
-                                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('invoiceDateLabel')}</th>
+                                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderDate')}</th>
                                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('totalAmountLabel')}</th>
                                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderAction')}</th>
                             </tr>
@@ -361,12 +361,8 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoi
                                     <td className="py-2 px-4 border-b text-slate-900">{invoice.totalAmount.toFixed(2)}</td>
                                     <td className="py-2 px-4 border-b">
                                         <div className="flex items-center space-x-2 space-x-reverse">
-                                            <button onClick={() => setInvoiceToPreview(invoice)} title={t('viewInvoice')} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100">
-                                                <EyeIcon />
-                                            </button>
-                                            <button onClick={() => removeInvoice(invoice.id)} title={t('deleteInvoice')} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100">
-                                                <TrashIcon />
-                                            </button>
+                                            <button onClick={() => setInvoiceToPreview(invoice)} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-md text-sm hover:bg-blue-200">{t('viewInvoice')}</button>
+                                            <button onClick={() => removeInvoice(invoice.id)} className="bg-red-100 text-red-800 px-3 py-1 rounded-md text-sm hover:bg-red-200">{t('deleteInvoice')}</button>
                                         </div>
                                     </td>
                                 </tr>
