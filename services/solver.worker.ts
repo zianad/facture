@@ -4,12 +4,25 @@
 // This approach is much faster than backtracking, especially when item quantities are large.
 const findCombinationWithDP = (items, target) => {
     const targetInCents = Math.round(target * 100);
-    if (targetInCents <= 0) return null;
+    if (targetInCents <= 0 || items.length === 0) return null;
 
     const itemMap = new Map();
+    let maxItemPriceInCents = 0;
+
     items.forEach(item => {
         if(!itemMap.has(item.id)) itemMap.set(item.id, item);
+        const priceInCents = Math.round(item.price * 100);
+        if (priceInCents > maxItemPriceInCents) {
+            maxItemPriceInCents = priceInCents;
+        }
     });
+
+    if (maxItemPriceInCents <= 0) return null;
+
+    // The upper bound for our search space. We search for sums slightly above the target
+    // to find a potentially closer match. The buffer is the price of the most expensive single item.
+    const searchUpperBound = targetInCents + maxItemPriceInCents;
+
 
     // 1. Binary Splitting: Convert the "Bounded Knapsack" problem into a "0/1 Knapsack" problem.
     // This is a standard trick to handle quantities efficiently in DP without a performance hit.
@@ -35,15 +48,15 @@ const findCombinationWithDP = (items, target) => {
 
     // 2. Solve the 0/1 Knapsack problem using Dynamic Programming.
     // dp[s] = true if sum 's' is reachable.
-    const dp = new Array(targetInCents + 1).fill(false);
+    const dp = new Array(searchUpperBound + 1).fill(false);
     // path[s] stores the item and previous sum to allow for reconstructing the solution.
-    const path = new Array(targetInCents + 1).fill(null); 
+    const path = new Array(searchUpperBound + 1).fill(null); 
     dp[0] = true;
 
     for (const zItem of zeroOneItems) {
         if (zItem.priceInCents <= 0) continue;
         // Iterate downwards to ensure each "split" item is used at most once.
-        for (let s = targetInCents; s >= zItem.priceInCents; s--) {
+        for (let s = searchUpperBound; s >= zItem.priceInCents; s--) {
             if (dp[s - zItem.priceInCents] && !dp[s]) {
                 dp[s] = true;
                 path[s] = { item: zItem, prevSum: s - zItem.priceInCents };
@@ -54,7 +67,7 @@ const findCombinationWithDP = (items, target) => {
     // 3. Find the sum in the dp table that is closest to the target.
     let bestSum = -1;
     let minDiff = Infinity;
-    for (let s = 0; s <= targetInCents; s++) {
+    for (let s = 0; s <= searchUpperBound; s++) {
         if (dp[s]) {
             const diff = Math.abs(s - targetInCents);
             if (diff < minDiff) {
