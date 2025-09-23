@@ -68,6 +68,19 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ invoice, comp
     const totalTVA = totalHT * tvaRate;
     const totalTTC = totalHT + totalTVA;
 
+    const groupedItems = useMemo(() => {
+        const itemsMap = new Map<string, Item & { count: number }>();
+        invoice.items.forEach(item => {
+            const existing = itemsMap.get(item.id);
+            if (existing) {
+                existing.count += 1;
+            } else {
+                itemsMap.set(item.id, { ...item, count: 1 });
+            }
+        });
+        return Array.from(itemsMap.values());
+    }, [invoice.items]);
+
     useEffect(() => {
         const handleEsc = (event: KeyboardEvent) => {
            if (event.key === 'Escape') {
@@ -133,13 +146,13 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ invoice, comp
                             </tr>
                         </thead>
                         <tbody>
-                            {invoice.items.map((item, index) => (
-                                <tr key={`${item.id}-${index}`} className="border-b">
+                            {groupedItems.map((item) => (
+                                <tr key={item.id} className="border-b">
                                     <td className="py-2 px-4 text-slate-700">{item.reference}</td>
                                     <td className="py-2 px-4 text-slate-700">{item.name}</td>
-                                    <td className="py-2 px-4 text-slate-700 text-center">1</td>
+                                    <td className="py-2 px-4 text-slate-700 text-center">{item.count}</td>
                                     <td className="py-2 px-4 text-slate-700">{item.price.toFixed(2)}</td>
-                                    <td className="py-2 px-4 text-slate-700">{item.price.toFixed(2)}</td>
+                                    <td className="py-2 px-4 text-slate-700">{(item.price * item.count).toFixed(2)}</td>
                                 </tr>
                             ))}
                         </tbody>

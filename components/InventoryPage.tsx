@@ -24,7 +24,6 @@ const UploadIcon = () => (
     </svg>
 );
 
-
 const TrashIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
     <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
@@ -98,9 +97,9 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, addMu
   const [editFormData, setEditFormData] = useState({ reference: '', name: '', category: '', price: '', quantity: '', purchaseDate: '' });
   const [editErrors, setEditErrors] = useState({ reference: '', name: '', category: '', price: '', quantity: '', purchaseDate: '' });
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ type: 'success' | 'partial' | 'error' | 'info', message: string } | null>(null);
+  const excelFileInputRef = useRef<HTMLInputElement>(null);
+  const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [excelImportResult, setExcelImportResult] = useState<{ type: 'success' | 'partial' | 'error' | 'info', message: string } | null>(null);
 
   const inventorySummary = useMemo(() => {
     const totalUniqueItems = inventory.length;
@@ -277,12 +276,12 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, addMu
         }
     };
 
-    const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleExcelImport = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        setIsImporting(true);
-        setImportResult(null);
+        setIsImportingExcel(true);
+        setExcelImportResult(null);
 
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -343,30 +342,30 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, addMu
                 }
 
                 if (skippedCount > 0) {
-                    setImportResult({ type: 'partial', message: t('importPartialSuccess', { successCount: validItems.length, skippedCount: skippedCount }) });
+                    setExcelImportResult({ type: 'partial', message: t('importPartialSuccess', { successCount: validItems.length, skippedCount: skippedCount }) });
                 } else if (validItems.length > 0) {
-                    setImportResult({ type: 'success', message: t('importSuccess', { count: validItems.length }) });
+                    setExcelImportResult({ type: 'success', message: t('importSuccess', { count: validItems.length }) });
                 } else {
-                    setImportResult({ type: 'info', message: t('importNoItemsFound') });
+                    setExcelImportResult({ type: 'info', message: t('importNoItemsFound') });
                 }
 
             } catch (error) {
                 console.error("Error processing Excel file:", error);
-                setImportResult({ type: 'error', message: t('importError') });
+                setExcelImportResult({ type: 'error', message: t('importError') });
             } finally {
-                setIsImporting(false);
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = "";
+                setIsImportingExcel(false);
+                if (excelFileInputRef.current) {
+                    excelFileInputRef.current.value = "";
                 }
             }
         };
 
         reader.onerror = (error) => {
             console.error("File reading error:", error);
-            setImportResult({ type: 'error', message: t('importError') });
-            setIsImporting(false);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
+            setExcelImportResult({ type: 'error', message: t('importError') });
+            setIsImportingExcel(false);
+            if (excelFileInputRef.current) {
+                excelFileInputRef.current.value = "";
             }
         };
 
@@ -416,25 +415,32 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, addMu
       </div>
       
       <div className="p-6 bg-white rounded-lg shadow-sm">
-        <h2 className="text-xl font-bold mb-2 text-slate-700">{t('importFromImageButton')}</h2>
-        <p className="text-sm text-slate-500 mb-4">{t('importInstructions')}</p>
-        <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".xlsx, .xls" className="hidden" aria-label={t('importFromImageButton')} />
-        <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="bg-teal-600 text-white p-2 rounded-md hover:bg-teal-700 transition-colors flex items-center justify-center disabled:bg-slate-400 disabled:cursor-wait">
-          <UploadIcon />
-          {t('importFromImageButton')}
-        </button>
-        {isImporting && <p className="text-blue-600 text-sm mt-2 animate-pulse" aria-live="polite">{t('importLoading')}</p>}
-        {importResult && (
-          <div role="alert" className={`mt-4 p-3 rounded-md text-sm ${
-              importResult.type === 'success' ? 'bg-green-100 text-green-800' :
-              importResult.type === 'partial' ? 'bg-yellow-100 text-yellow-800' :
-              importResult.type === 'info' ? 'bg-blue-100 text-blue-800' :
-              'bg-red-100 text-red-800'
-            }`}>
-            {importResult.message}
+        <h2 className="text-xl font-bold mb-4 text-slate-700">{t('importItemsTitle')}</h2>
+        <div className="grid grid-cols-1 gap-y-6">
+          {/* Excel Import */}
+          <div>
+            <h3 className="font-semibold text-slate-600 mb-2">{t('importFromExcelTitle')}</h3>
+            <p className="text-sm text-slate-500 mb-4">{t('importInstructions')}</p>
+            <input type="file" ref={excelFileInputRef} onChange={handleExcelImport} accept=".xlsx, .xls" className="hidden" aria-label={t('importFromExcelButton')} />
+            <button onClick={() => excelFileInputRef.current?.click()} disabled={isImportingExcel} className="bg-teal-600 text-white p-2 rounded-md hover:bg-teal-700 transition-colors flex items-center justify-center disabled:bg-slate-400 disabled:cursor-wait">
+              <UploadIcon />
+              {t('importFromExcelButton')}
+            </button>
+            {isImportingExcel && <p className="text-blue-600 text-sm mt-2 animate-pulse" aria-live="polite">{t('importLoading')}</p>}
+            {excelImportResult && (
+              <div role="alert" className={`mt-4 p-3 rounded-md text-sm ${
+                  excelImportResult.type === 'success' ? 'bg-green-100 text-green-800' :
+                  excelImportResult.type === 'partial' ? 'bg-yellow-100 text-yellow-800' :
+                  excelImportResult.type === 'info' ? 'bg-blue-100 text-blue-800' :
+                  'bg-red-100 text-red-800'
+                }`}>
+                {excelImportResult.message}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
+
 
        <div className="p-6 bg-white rounded-lg shadow-sm">
         <h2 className="text-xl font-bold mb-4 text-slate-700">{t('inventorySummaryTitle')}</h2>
@@ -475,83 +481,73 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, addMu
                         {getSortIcon('name')}
                     </button>
                 </th>
-                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderCategory')}</th>
                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">
                     <button onClick={() => requestSort('price')} className="flex items-center space-x-1 space-x-reverse group">
                         <span>{t('tableHeaderUnitPrice')}</span>
                         {getSortIcon('price')}
                     </button>
                 </th>
-                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderQuantity')}</th>
+                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">
+                    <span>{t('tableHeaderQuantity')}</span>
+                </th>
                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">
                     <button onClick={() => requestSort('purchaseDate')} className="flex items-center space-x-1 space-x-reverse group">
                         <span>{t('tableHeaderPurchaseDate')}</span>
                         {getSortIcon('purchaseDate')}
                     </button>
                 </th>
-                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderAction')}</th>
+                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">
+                    <span>{t('tableHeaderAction')}</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {sortedAndFilteredInventory.length > 0 ? sortedAndFilteredInventory.map(item => (
-                <tr key={item.id} className="hover:bg-slate-50 align-top">
+                <tr key={item.id} className="hover:bg-slate-50">
                    {editingItemId === item.id ? (
-                    <>
-                        <td className="py-2 px-4 border-b">
-                            <input type="text" name="reference" value={editFormData.reference} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.reference ? 'border-red-500' : 'border-slate-300'} bg-white rounded-md text-sm`} />
-                            {editErrors.reference && <p className="text-red-500 text-xs mt-1">{editErrors.reference}</p>}
-                        </td>
-                        <td className="py-2 px-4 border-b">
-                            <input type="text" name="name" value={editFormData.name} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.name ? 'border-red-500' : 'border-slate-300'} bg-white rounded-md text-sm`} />
-                            {editErrors.name && <p className="text-red-500 text-xs mt-1">{editErrors.name}</p>}
-                        </td>
-                        <td className="py-2 px-4 border-b">
-                            <input type="text" name="category" value={editFormData.category} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.category ? 'border-red-500' : 'border-slate-300'} bg-white rounded-md text-sm`} />
-                            {editErrors.category && <p className="text-red-500 text-xs mt-1">{editErrors.category}</p>}
-                        </td>
-                        <td className="py-2 px-4 border-b">
-                            <input type="number" name="price" value={editFormData.price} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.price ? 'border-red-500' : 'border-slate-300'} bg-white rounded-md text-sm`} min="0" step="0.01" />
-                            {editErrors.price && <p className="text-red-500 text-xs mt-1">{editErrors.price}</p>}
-                        </td>
-                        <td className="py-2 px-4 border-b">
-                            <input type="number" name="quantity" value={editFormData.quantity} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.quantity ? 'border-red-500' : 'border-slate-300'} bg-white rounded-md text-sm`} min="0" step="1"/>
-                            {editErrors.quantity && <p className="text-red-500 text-xs mt-1">{editErrors.quantity}</p>}
-                        </td>
-                        <td className="py-2 px-4 border-b">
-                            <input type="date" name="purchaseDate" value={editFormData.purchaseDate} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.purchaseDate ? 'border-red-500' : 'border-slate-300'} bg-white rounded-md text-sm`} />
-                            {editErrors.purchaseDate && <p className="text-red-500 text-xs mt-1">{editErrors.purchaseDate}</p>}
-                        </td>
-                        <td className="py-2 px-4 border-b">
-                            <div className="flex items-center space-x-2 space-x-reverse">
-                                <button onClick={() => handleSaveClick(item.id)} title={t('save')} className="text-green-600 hover:text-green-800 p-1 rounded-full hover:bg-green-100">
-                                    <SaveIcon />
-                                </button>
-                                <button onClick={handleCancelClick} title={t('cancel')} className="text-slate-500 hover:text-slate-700 p-1 rounded-full hover:bg-slate-100">
-                                    <CancelIcon />
-                                </button>
-                            </div>
-                        </td>
-                    </>
-                ) : (
-                    <>
-                        <td className="py-2 px-4 border-b text-slate-900">{item.reference}</td>
-                        <td className="py-2 px-4 border-b text-slate-900">{item.name}</td>
-                        <td className="py-2 px-4 border-b text-slate-900">{item.category}</td>
-                        <td className="py-2 px-4 border-b text-slate-900">{item.price.toFixed(2)}</td>
-                        <td className="py-2 px-4 border-b text-slate-900">{item.quantity}</td>
-                        <td className="py-2 px-4 border-b text-slate-900">{formatDate(item.purchaseDate)}</td>
-                        <td className="py-2 px-4 border-b">
-                          <div className="flex items-center space-x-2 space-x-reverse">
-                            <button onClick={() => handleEditClick(item)} title={t('edit')} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100">
-                                <EditIcon />
-                            </button>
-                            <button onClick={() => removeItem(item.id)} title={t('deleteUser')} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100">
-                                <TrashIcon />
-                            </button>
-                          </div>
-                        </td>
-                    </>
-                )}
+                        <>
+                            <td className="py-2 px-4 border-b">
+                                <input type="text" name="reference" value={editFormData.reference} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.reference ? 'border-red-500' : 'border-slate-300'} rounded-md`} />
+                                {editErrors.reference && <p className="text-red-500 text-xs">{editErrors.reference}</p>}
+                            </td>
+                            <td className="py-2 px-4 border-b">
+                                <input type="text" name="name" value={editFormData.name} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.name ? 'border-red-500' : 'border-slate-300'} rounded-md`} />
+                                {editErrors.name && <p className="text-red-500 text-xs">{editErrors.name}</p>}
+                            </td>
+                            <td className="py-2 px-4 border-b">
+                                <input type="number" name="price" value={editFormData.price} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.price ? 'border-red-500' : 'border-slate-300'} rounded-md`} />
+                                {editErrors.price && <p className="text-red-500 text-xs">{editErrors.price}</p>}
+                            </td>
+                             <td className="py-2 px-4 border-b">
+                                <input type="number" name="quantity" value={editFormData.quantity} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.quantity ? 'border-red-500' : 'border-slate-300'} rounded-md`} />
+                                {editErrors.quantity && <p className="text-red-500 text-xs">{editErrors.quantity}</p>}
+                            </td>
+                            <td className="py-2 px-4 border-b">
+                                <input type="date" name="purchaseDate" value={editFormData.purchaseDate} onChange={handleEditFormChange} className={`w-full p-1 border ${editErrors.purchaseDate ? 'border-red-500' : 'border-slate-300'} rounded-md`} />
+                                {editErrors.purchaseDate && <p className="text-red-500 text-xs">{editErrors.purchaseDate}</p>}
+                            </td>
+                            <td className="py-2 px-4 border-b">
+                                <div className="flex items-center space-x-2 space-x-reverse">
+                                    <button onClick={() => handleSaveClick(item.id)} title={t('save')} className="text-green-600 hover:text-green-800 p-1"><SaveIcon /></button>
+                                    <button onClick={handleCancelClick} title={t('cancel')} className="text-slate-500 hover:text-slate-700 p-1"><CancelIcon /></button>
+                                </div>
+                            </td>
+                        </>
+                    ) : (
+                        <>
+                            <td className="py-2 px-4 border-b text-slate-900">{item.reference}</td>
+                            <td className="py-2 px-4 border-b text-slate-900">{item.name}</td>
+                            <td className="py-2 px-4 border-b text-slate-900">{item.price.toFixed(2)}</td>
+                            <td className="py-2 px-4 border-b text-slate-900">{item.quantity}</td>
+                            <td className="py-2 px-4 border-b text-slate-900">{formatDate(item.purchaseDate)}</td>
+                            <td className="py-2 px-4 border-b">
+                                <div className="flex items-center space-x-2 space-x-reverse">
+                                    <button onClick={() => handleEditClick(item)} title={t('edit')} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100"><EditIcon /></button>
+                                    <button onClick={() => removeItem(item.id)} title={t('deleteInvoice')} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100"><TrashIcon /></button>
+                                </div>
+                            </td>
+                        </>
+                    )}
                 </tr>
               )) : (
                 <tr>
@@ -563,13 +559,11 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, addMu
             </tbody>
           </table>
         </div>
-        {inventory.length > 0 && (
-            <div className="mt-6 text-center">
-                <button onClick={navigateToInvoice} className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors">
-                    {t('goToInvoicePageButton')}
-                </button>
-            </div>
-        )}
+        <div className="mt-6 text-center">
+            <button onClick={navigateToInvoice} className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors">
+                {t('goToInvoicePageButton')}
+            </button>
+        </div>
       </div>
     </div>
   );
