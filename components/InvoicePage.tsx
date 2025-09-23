@@ -1,10 +1,9 @@
-import React, { useState, useRef } from 'react';
-import type { Item, InvoiceData } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import type { Item, InvoiceData, User } from '../types';
 import { useTranslation } from '../context/LanguageContext';
-import { generateInvoiceItems } from '../services/invoiceService';
 import { useAuth } from '../context/AuthContext';
+import { generateInvoiceItems } from '../services/invoiceService';
 
-// Props interface based on App.tsx usage
 interface InvoicePageProps {
   inventory: Item[];
   invoices: InvoiceData[];
@@ -13,327 +12,379 @@ interface InvoicePageProps {
   navigateToInventory: () => void;
 }
 
-// Icons
-const TrashIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-    </svg>
-  );
-
-const PrintIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
-        <path d="M13 11.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-    </svg>
-);
-
-
-const InvoicePage: React.FC<InvoicePageProps> = ({
-  inventory,
-  invoices,
-  addInvoice,
-  removeInvoice,
-  navigateToInventory,
-}) => {
-  const { t } = useTranslation();
-  const { currentUser } = useAuth();
-  const [customerName, setCustomerName] = useState('');
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [targetTotal, setTargetTotal] = useState('');
-  
-  const [generatedItems, setGeneratedItems] = useState<Item[] | null>(null);
-  const [calculatedTotal, setCalculatedTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [invoiceToPrint, setInvoiceToPrint] = useState<InvoiceData | null>(null);
-
-  const printRef = useRef<HTMLDivElement>(null);
-
-  const handleGenerateItems = async () => {
-    setError(null);
-    setGeneratedItems(null);
-
-    const target = parseFloat(targetTotal);
-    if (!customerName.trim()) {
-        setError(t('errorCustomerNameRequired'));
-        return;
-    }
-    if (isNaN(target) || target <= 0) {
-      setError(t('errorInvalidTargetAmount'));
-      return;
-    }
-    if (inventory.length === 0) {
-      setError(t('errorEmptyInventory'));
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const items = await generateInvoiceItems(inventory, target, invoiceDate);
-      if (items && items.length > 0) {
-        setGeneratedItems(items);
-        const total = items.reduce((sum, item) => sum + item.price, 0);
-        setCalculatedTotal(total);
-      } else {
-        setError(t('errorNoCombinationFound'));
-        setGeneratedItems([]);
-      }
-    } catch (e) {
-      console.error(e);
-      setError(t('errorGenerationFailed'));
-      setGeneratedItems([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSaveInvoice = async () => {
-    if (!generatedItems || generatedItems.length === 0 || !customerName) return;
-
-    const invoiceNumber = `INV-${Date.now()}`;
-    const newInvoiceData: Omit<InvoiceData, 'id' | 'userId'> = {
-      customerName,
-      invoiceDate,
-      items: generatedItems,
-      totalAmount: calculatedTotal,
-      invoiceNumber,
-    };
-
-    const savedInvoice = await addInvoice(newInvoiceData);
-    if (savedInvoice) {
-        // Reset form
-        setCustomerName('');
-        setTargetTotal('');
-        setGeneratedItems(null);
-        setCalculatedTotal(0);
-        setError(null);
-
-        // Trigger print for the newly created invoice
-        handlePrint(savedInvoice);
-    }
-  };
-
-  const handlePrint = (invoice: InvoiceData) => {
-    setInvoiceToPrint(invoice);
-    // Use a timeout to allow the print component to render before printing
-    setTimeout(() => {
-        window.print();
-        setInvoiceToPrint(null);
-    }, 100);
-  };
-  
-  const formatDate = (dateString: string): string => {
+const formatDate = (dateString: string): string => {
     if (!dateString) return '';
     try {
-        const [year, month, day] = dateString.split('-');
+        const date = new Date(dateString);
+        // Adjust for timezone offset to prevent date from shifting
+        const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+        const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
+        const day = String(adjustedDate.getDate()).padStart(2, '0');
+        const month = String(adjustedDate.getMonth() + 1).padStart(2, '0');
+        const year = adjustedDate.getFullYear();
         return `${day}/${month}/${year}`;
     } catch {
         return dateString; // Fallback
     }
-  };
+};
 
-  const resetForm = () => {
-    setCustomerName('');
-    setTargetTotal('');
-    setInvoiceDate(new Date().toISOString().split('T')[0]);
-    setGeneratedItems(null);
-    setCalculatedTotal(0);
-    setError(null);
-  };
+// --- Icons ---
+const TrashIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+    </svg>
+);
 
-  const renderPrintableInvoice = () => {
-    if (!invoiceToPrint || !currentUser) return null;
+const EyeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+    </svg>
+);
 
-    const groupedItems = invoiceToPrint.items.reduce((acc, item) => {
-        const existing = acc.find(i => i.reference === item.reference);
-        if (existing) {
-            existing.quantity += 1;
-            existing.totalPrice += item.price;
-        } else {
-            acc.push({ ...item, quantity: 1, totalPrice: item.price });
-        }
-        return acc;
-    }, [] as (Item & { quantity: number; totalPrice: number })[]);
+const PrintIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm-2 5a1 1 0 011 1v4a1 1 0 11-2 0v-4a1 1 0 011-1z" clipRule="evenodd" />
+    </svg>
+);
+
+const CloseIcon = () => (
+     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    </svg>
+);
+
+
+interface InvoicePreviewModalProps {
+    invoice: InvoiceData;
+    companyInfo: User | null;
+    onClose: () => void;
+}
+
+const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ invoice, companyInfo, onClose }) => {
+    const { t } = useTranslation();
+    const tvaRate = 0.20; // 20%
+    const totalHT = invoice.totalAmount;
+    const totalTVA = totalHT * tvaRate;
+    const totalTTC = totalHT + totalTVA;
+
+    useEffect(() => {
+        const handleEsc = (event: KeyboardEvent) => {
+           if (event.key === 'Escape') {
+              onClose();
+           }
+        };
+        window.addEventListener('keydown', handleEsc);
+        document.body.style.overflow = 'hidden';
+
+        return () => {
+          window.removeEventListener('keydown', handleEsc);
+          document.body.style.overflow = 'auto';
+        };
+    }, [onClose]);
+
+    const handlePrint = () => {
+        window.print();
+    };
 
     return (
-        <div className="print:block hidden" ref={printRef}>
-            <div className="p-8">
-                <div className="flex justify-between items-start mb-8">
-                    <div>
-                        <h1 className="text-2xl font-bold">{currentUser.companyName || t('appName')}</h1>
-                        <p>{currentUser.companyAddress}</p>
-                        <p>ICE: {currentUser.companyICE}</p>
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-bold text-right">{t('invoiceTitle')}</h2>
-                        <p className="text-right">{t('invoiceNumberLabel')}: {invoiceToPrint.invoiceNumber}</p>
-                        <p className="text-right">{t('invoiceDateLabel')}: {formatDate(invoiceToPrint.invoiceDate)}</p>
-                    </div>
+        <div id="invoice-modal" className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4 print:bg-white print:p-0 print:items-start">
+            <div id="invoice-modal-content" className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto print:shadow-none print:rounded-none print:max-h-full">
+                <div className="flex justify-between items-start print:hidden">
+                    <h2 className="text-2xl font-bold text-slate-800">{t('invoiceDetailTitle')}</h2>
+                    <button onClick={onClose} className="text-slate-500 hover:text-slate-800"><CloseIcon /></button>
                 </div>
+                
+                <div className="mt-6 border-t pt-6">
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-8">
+                        <div>
+                            <h3 className="text-xl font-bold text-slate-800">{companyInfo?.companyName || t('yourCompany')}</h3>
+                            <p className="text-sm text-slate-600">{companyInfo?.companyAddress}</p>
+                            <p className="text-sm text-slate-600">ICE: {companyInfo?.companyICE}</p>
+                        </div>
+                        <div className="text-right">
+                            <h2 className="text-3xl font-bold uppercase text-slate-800">{t('invoiceTitle')}</h2>
+                            <p className="text-sm text-slate-600">{t('invoiceNumberLabel')}: {invoice.invoiceNumber}</p>
+                        </div>
+                    </div>
 
-                <div className="mb-8">
-                    <h3 className="font-bold border-b pb-1 mb-2">{t('billToLabel')}</h3>
-                    <p>{invoiceToPrint.customerName}</p>
-                </div>
-
-                <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-100">
-                        <tr>
-                            <th className="p-2">{t('tableHeaderItemReference')}</th>
-                            <th className="p-2">{t('tableHeaderItemName')}</th>
-                            <th className="p-2 text-right">{t('tableHeaderQuantity')}</th>
-                            <th className="p-2 text-right">{t('tableHeaderUnitPrice')}</th>
-                            <th className="p-2 text-right">{t('tableHeaderTotalHT')}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {groupedItems.map((item, index) => (
-                            <tr key={`${item.id}-${index}`} className="border-b">
-                                <td className="p-2">{item.reference}</td>
-                                <td className="p-2">{item.name}</td>
-                                <td className="p-2 text-right">{item.quantity}</td>
-                                <td className="p-2 text-right">{item.price.toFixed(2)}</td>
-                                <td className="p-2 text-right">{item.totalPrice.toFixed(2)}</td>
+                    {/* Customer and Date */}
+                    <div className="grid grid-cols-2 gap-4 mb-8 pb-4 border-b">
+                        <div>
+                            <h4 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('billToLabel')}</h4>
+                            <p className="font-bold text-slate-800">{invoice.customerName}</p>
+                        </div>
+                        <div className="text-right">
+                            <h4 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('invoiceDateLabel')}</h4>
+                            <p className="font-medium text-slate-800">{formatDate(invoice.invoiceDate)}</p>
+                        </div>
+                    </div>
+                    
+                    {/* Items Table */}
+                    <table className="w-full mb-8">
+                        <thead className="bg-slate-100">
+                            <tr>
+                                <th className="py-2 px-4 text-right font-semibold text-slate-600">{t('tableHeaderItemReference')}</th>
+                                <th className="py-2 px-4 text-right font-semibold text-slate-600">{t('tableHeaderItemName')}</th>
+                                <th className="py-2 px-4 text-right font-semibold text-slate-600">{t('tableHeaderQuantity')}</th>
+                                <th className="py-2 px-4 text-right font-semibold text-slate-600">{t('tableHeaderUnitPrice')}</th>
+                                <th className="py-2 px-4 text-right font-semibold text-slate-600">{t('tableHeaderTotalHT')}</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {invoice.items.map((item, index) => (
+                                <tr key={`${item.id}-${index}`} className="border-b">
+                                    <td className="py-2 px-4 text-slate-700">{item.reference}</td>
+                                    <td className="py-2 px-4 text-slate-700">{item.name}</td>
+                                    <td className="py-2 px-4 text-slate-700 text-center">1</td>
+                                    <td className="py-2 px-4 text-slate-700">{item.price.toFixed(2)}</td>
+                                    <td className="py-2 px-4 text-slate-700">{item.price.toFixed(2)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
 
-                <div className="flex justify-end mt-4">
-                    <div className="w-1/3">
-                        <div className="flex justify-between font-bold">
-                            <span>{t('totalHTLabel')}</span>
-                            <span>{invoiceToPrint.totalAmount.toFixed(2)}</span>
+                     {/* Totals */}
+                    <div className="flex justify-end">
+                        <div className="w-full max-w-xs">
+                            <div className="flex justify-between py-2 border-b">
+                                <span className="font-semibold text-slate-600">{t('totalHTLabel')}:</span>
+                                <span className="font-semibold text-slate-800">{totalHT.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between py-2 border-b">
+                                <span className="font-semibold text-slate-600">{t('tvaLabel')} ({tvaRate * 100}%):</span>
+                                <span className="font-semibold text-slate-800">{totalTVA.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between py-2 mt-2 bg-slate-100 px-2 rounded-md">
+                                <span className="text-lg font-bold text-slate-800">{t('totalTTCLabel')}:</span>
+                                <span className="text-lg font-bold text-slate-800">{totalTTC.toFixed(2)}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="mt-16 text-xs text-center">
-                    <p>{t('invoiceFooter')}</p>
+                <div className="mt-8 text-center print:hidden">
+                    <button onClick={handlePrint} className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center mx-auto">
+                        <PrintIcon />
+                        {t('printButton')}
+                    </button>
                 </div>
             </div>
         </div>
     );
-  };
+};
 
 
-  return (
-    <div className="space-y-8">
-      {renderPrintableInvoice()}
-      <div className="print:hidden">
-          <div className="p-6 bg-white rounded-lg shadow-sm">
-            <h2 className="text-xl font-bold mb-4 text-slate-700">{t('createInvoiceTitle')}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div className="flex flex-col">
-                    <label htmlFor="customerName" className="mb-1 text-sm font-medium text-slate-600">{t('customerNameLabel')}</label>
-                    <input type="text" id="customerName" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="p-2 border border-slate-300 bg-slate-100 rounded-md"/>
+const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoice, removeInvoice, navigateToInventory }) => {
+    const { t } = useTranslation();
+    const { currentUser } = useAuth();
+    
+    const [customerName, setCustomerName] = useState('');
+    const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
+    const [targetTotal, setTargetTotal] = useState('');
+    
+    const [generatedItems, setGeneratedItems] = useState<Item[] | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const [invoiceToPreview, setInvoiceToPreview] = useState<InvoiceData | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredInvoices = useMemo(() => {
+        return invoices.filter(invoice =>
+            invoice.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [invoices, searchTerm]);
+
+    const handleGenerateItems = async () => {
+        setIsLoading(true);
+        setError('');
+        setGeneratedItems(null);
+
+        const total = parseFloat(targetTotal);
+        if (isNaN(total) || total <= 0) {
+            setError(t('errorInvalidAmount'));
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const items = await generateInvoiceItems(inventory, total, invoiceDate);
+            if (items && items.length > 0) {
+                setGeneratedItems(items);
+            } else {
+                setError(t('errorNoCombination'));
+            }
+        } catch (e) {
+            console.error(e);
+            setError(t('errorGeneratingItems'));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSaveInvoice = async () => {
+        if (!generatedItems || generatedItems.length === 0) {
+            setError(t('errorNoItemsToSave'));
+            return;
+        }
+        if (!customerName.trim()) {
+            setError(t('errorCustomerNameRequired'));
+            return;
+        }
+
+        const totalAmount = generatedItems.reduce((sum, item) => sum + item.price, 0);
+        
+        const newInvoiceData: Omit<InvoiceData, 'id' | 'userId'> = {
+            customerName,
+            invoiceDate,
+            items: generatedItems,
+            totalAmount,
+            invoiceNumber: `INV-${Date.now()}`,
+        };
+        
+        const newInvoice = await addInvoice(newInvoiceData);
+        if (newInvoice) {
+            setCustomerName('');
+            setTargetTotal('');
+            setGeneratedItems(null);
+            setError('');
+            setInvoiceToPreview(newInvoice);
+        } else {
+            setError(t('errorSavingInvoice'));
+        }
+    };
+    
+    const calculatedTotal = useMemo(() => {
+        if (!generatedItems) return 0;
+        return generatedItems.reduce((sum, item) => sum + item.price, 0);
+    }, [generatedItems]);
+
+    return (
+        <div className="space-y-8">
+            {/* --- Invoice Generation --- */}
+            <div className="p-6 bg-white rounded-lg shadow-sm">
+                <h2 className="text-xl font-bold mb-4 text-slate-700">{t('createInvoiceTitle')}</h2>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div className="flex flex-col">
+                        <label htmlFor="customerName" className="mb-1 text-sm font-medium text-slate-600">{t('customerNameLabel')}</label>
+                        <input type="text" id="customerName" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div className="flex flex-col">
+                        <label htmlFor="invoiceDate" className="mb-1 text-sm font-medium text-slate-600">{t('invoiceDateLabel')}</label>
+                        <input type="date" id="invoiceDate" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div className="flex flex-col">
+                        <label htmlFor="targetTotal" className="mb-1 text-sm font-medium text-slate-600">{t('targetTotalLabel')}</label>
+                        <input type="number" id="targetTotal" value={targetTotal} onChange={(e) => setTargetTotal(e.target.value)} min="0" step="0.01" className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" placeholder={t('amountPlaceholder')} />
+                    </div>
+                    <button onClick={handleGenerateItems} disabled={isLoading || inventory.length === 0} className="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition-colors disabled:bg-slate-400 disabled:cursor-not-allowed">
+                        {isLoading ? t('generatingButton') : t('generateItemsButton')}
+                    </button>
                 </div>
-                <div className="flex flex-col">
-                    <label htmlFor="invoiceDate" className="mb-1 text-sm font-medium text-slate-600">{t('invoiceDateLabel')}</label>
-                    <input type="date" id="invoiceDate" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className="p-2 border border-slate-300 bg-slate-100 rounded-md"/>
-                </div>
-                <div className="flex flex-col">
-                    <label htmlFor="targetTotal" className="mb-1 text-sm font-medium text-slate-600">{t('targetTotalLabel')}</label>
-                    <input type="number" id="targetTotal" value={targetTotal} onChange={(e) => setTargetTotal(e.target.value)} placeholder="e.g. 15000.00" min="0" step="0.01" className="p-2 border border-slate-300 bg-slate-100 rounded-md"/>
-                </div>
-                <button onClick={handleGenerateItems} disabled={isLoading} className="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 disabled:bg-slate-400">
-                    {isLoading ? t('generatingButton') : t('generateItemsButton')}
-                </button>
+                {inventory.length === 0 && <p className="text-yellow-600 text-sm mt-2">{t('emptyInventoryWarning')}</p>}
+                {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
             </div>
-             {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-          </div>
 
-          {generatedItems && (
-            <div className="p-6 bg-white rounded-lg shadow-sm mt-8">
-              <h3 className="text-lg font-bold mb-4 text-slate-700">{t('generatedInvoicePreviewTitle')}</h3>
-              {generatedItems.length > 0 ? (
-                <>
-                  <div className="overflow-x-auto mb-4">
-                     <table className="min-w-full bg-white text-sm">
+            {/* --- Generated Items --- */}
+            {generatedItems && (
+                <div className="p-6 bg-white rounded-lg shadow-sm animate-fade-in">
+                    <h3 className="text-lg font-bold mb-4 text-slate-700">{t('generatedInvoiceItemsTitle')}</h3>
+                    <div className="overflow-x-auto max-h-96">
+                        <table className="min-w-full bg-white">
+                            <thead className="bg-slate-100 sticky top-0">
+                                <tr>
+                                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderItemReference')}</th>
+                                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderItemName')}</th>
+                                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderUnitPrice')}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {generatedItems.map((item, index) => (
+                                    <tr key={`${item.id}-${index}`} className="hover:bg-slate-50">
+                                        <td className="py-2 px-4 border-b text-slate-900">{item.reference}</td>
+                                        <td className="py-2 px-4 border-b text-slate-900">{item.name}</td>
+                                        <td className="py-2 px-4 border-b text-slate-900">{item.price.toFixed(2)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="mt-4 flex justify-between items-center">
+                        <p className="text-lg font-bold text-slate-800">
+                            {t('totalAmountLabel')}: {calculatedTotal.toFixed(2)}
+                            <span className="text-sm font-normal text-slate-500 ml-2">({t('totalDifferenceLabel')}: {(calculatedTotal - parseFloat(targetTotal || '0')).toFixed(2)})</span>
+                        </p>
+                        <button onClick={handleSaveInvoice} className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors">
+                            {t('saveInvoiceButton')}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* --- Invoice History --- */}
+            <div className="p-6 bg-white rounded-lg shadow-sm">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold text-slate-700">{t('invoiceHistoryTitle')} ({filteredInvoices.length})</h2>
+                    <input type="text" placeholder={t('searchPlaceholderInvoice')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="p-2 border border-slate-300 bg-slate-100 rounded-md w-1/3 focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white">
                         <thead className="bg-slate-100">
                             <tr>
-                                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderItemReference')}</th>
-                                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderItemName')}</th>
-                                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderUnitPrice')}</th>
+                                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('invoiceNumberLabel')}</th>
+                                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('customerNameLabel')}</th>
+                                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('invoiceDateLabel')}</th>
+                                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('totalAmountLabel')}</th>
+                                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderAction')}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {generatedItems.map((item, index) => (
-                                <tr key={`${item.id}-${index}`} className="hover:bg-slate-50">
-                                    <td className="py-2 px-4 border-b text-slate-900">{item.reference}</td>
-                                    <td className="py-2 px-4 border-b text-slate-900">{item.name}</td>
-                                    <td className="py-2 px-4 border-b text-slate-900">{item.price.toFixed(2)}</td>
+                            {filteredInvoices.length > 0 ? filteredInvoices.map(invoice => (
+                                <tr key={invoice.id} className="hover:bg-slate-50">
+                                    <td className="py-2 px-4 border-b text-slate-900">{invoice.invoiceNumber}</td>
+                                    <td className="py-2 px-4 border-b text-slate-900">{invoice.customerName}</td>
+                                    <td className="py-2 px-4 border-b text-slate-900">{formatDate(invoice.invoiceDate)}</td>
+                                    <td className="py-2 px-4 border-b text-slate-900">{invoice.totalAmount.toFixed(2)}</td>
+                                    <td className="py-2 px-4 border-b">
+                                        <div className="flex items-center space-x-2 space-x-reverse">
+                                            <button onClick={() => setInvoiceToPreview(invoice)} title={t('viewInvoice')} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100">
+                                                <EyeIcon />
+                                            </button>
+                                            <button onClick={() => removeInvoice(invoice.id)} title={t('deleteInvoice')} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100">
+                                                <TrashIcon />
+                                            </button>
+                                        </div>
+                                    </td>
                                 </tr>
-                            ))}
+                            )) : (
+                                <tr>
+                                    <td colSpan={5} className="text-center py-4 text-slate-500">
+                                        {searchTerm ? t('emptyInvoiceSearch') : t('emptyInvoices')}
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
-                     </table>
-                  </div>
-                  <div className="flex justify-end items-center mb-4">
-                      <div className="text-right">
-                          <p className="font-semibold text-slate-600">{t('targetTotalLabel')}: <span className="font-bold text-slate-800">{parseFloat(targetTotal).toFixed(2)}</span></p>
-                          <p className="font-semibold text-slate-600">{t('calculatedTotalLabel')}: <span className="font-bold text-slate-800">{calculatedTotal.toFixed(2)}</span></p>
-                          <p className="font-semibold text-slate-600">{t('differenceLabel')}: <span className={`font-bold ${Math.abs(calculatedTotal - parseFloat(targetTotal)) > 0.01 ? 'text-red-600' : 'text-green-600'}`}>{(calculatedTotal - parseFloat(targetTotal)).toFixed(2)}</span></p>
-                      </div>
-                  </div>
-                  <div className="flex justify-end space-x-4 space-x-reverse">
-                    <button onClick={resetForm} className="bg-slate-500 text-white px-4 py-2 rounded-md hover:bg-slate-600">{t('clearButton')}</button>
-                    <button onClick={handleSaveInvoice} className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">{t('saveAndPrintButton')}</button>
-                  </div>
-                </>
-              ) : (
-                <p className="text-slate-500">{t('noItemsGenerated')}</p>
-              )}
+                    </table>
+                </div>
+                 <div className="mt-6 text-center">
+                    <button onClick={navigateToInventory} className="bg-slate-600 text-white px-6 py-2 rounded-md hover:bg-slate-700 transition-colors">
+                        {t('goToInventoryPageButton')}
+                    </button>
+                </div>
             </div>
-          )}
-
-          <div className="p-6 bg-white rounded-lg shadow-sm mt-8">
-            <h2 className="text-xl font-bold mb-4 text-slate-700">{t('recentInvoicesTitle')} ({invoices.length})</h2>
-            <div className="overflow-x-auto">
-                <table className="min-w-full bg-white">
-                    <thead className="bg-slate-100">
-                        <tr>
-                            <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderInvoiceNumber')}</th>
-                            <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderCustomer')}</th>
-                            <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderDate')}</th>
-                            <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderAmount')}</th>
-                            <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderAction')}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {invoices.length > 0 ? invoices.map(invoice => (
-                            <tr key={invoice.id} className="hover:bg-slate-50">
-                                <td className="py-2 px-4 border-b text-slate-900">{invoice.invoiceNumber}</td>
-                                <td className="py-2 px-4 border-b text-slate-900">{invoice.customerName}</td>
-                                <td className="py-2 px-4 border-b text-slate-900">{formatDate(invoice.invoiceDate)}</td>
-                                <td className="py-2 px-4 border-b text-slate-900">{invoice.totalAmount.toFixed(2)}</td>
-                                <td className="py-2 px-4 border-b">
-                                    <div className="flex items-center space-x-2 space-x-reverse">
-                                        <button onClick={() => handlePrint(invoice)} title={t('print')} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100">
-                                            <PrintIcon />
-                                        </button>
-                                        <button onClick={() => removeInvoice(invoice.id)} title={t('deleteUser')} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100">
-                                            <TrashIcon />
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        )) : (
-                            <tr>
-                                <td colSpan={5} className="text-center py-4 text-slate-500">{t('emptyInvoices')}</td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-             <div className="mt-6 text-center">
-                <button onClick={navigateToInventory} className="bg-gray-200 text-slate-700 px-6 py-2 rounded-md hover:bg-gray-300 transition-colors">
-                    {t('goToInventoryPageButton')}
-                </button>
-            </div>
-          </div>
-      </div>
-    </div>
-  );
+            
+            {invoiceToPreview && (
+                <InvoicePreviewModal
+                    invoice={invoiceToPreview}
+                    companyInfo={currentUser}
+                    onClose={() => setInvoiceToPreview(null)}
+                />
+            )}
+        </div>
+    );
 };
 
 export default InvoicePage;
