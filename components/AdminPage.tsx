@@ -19,8 +19,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ navigateToApp }) => {
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyAddress, setNewCompanyAddress] = useState('');
   const [newCompanyICE, setNewCompanyICE] = useState('');
+  const [newCompanySubtitle, setNewCompanySubtitle] = useState('');
 
-  const [formError, setFormError] = useState({username: '', password: '', companyName: '', companyAddress: '', companyICE: ''});
+  const [formError, setFormError] = useState({username: '', password: '', companyName: '', companyAddress: '', companyICE: '', companySubtitle: ''});
   const [successMessage, setSuccessMessage] = useState('');
 
   const { users, addUser, removeUser } = useAuth();
@@ -28,7 +29,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ navigateToApp }) => {
   
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newErrors = {username: '', password: '', companyName: '', companyAddress: '', companyICE: ''};
+    const newErrors = {username: '', password: '', companyName: '', companyAddress: '', companyICE: '', companySubtitle: ''};
     let isValid = true;
     if(!newUsername.trim()){
       newErrors.username = t('usernameRequired');
@@ -50,16 +51,21 @@ const AdminPage: React.FC<AdminPageProps> = ({ navigateToApp }) => {
       newErrors.companyICE = t('errorCompanyICERequired');
       isValid = false;
     }
+    if(!newCompanySubtitle.trim()){
+        newErrors.companySubtitle = t('errorCompanySubtitleRequired');
+        isValid = false;
+    }
     setFormError(newErrors);
 
     if(isValid){
-      const success = await addUser(newUsername, newUserPassword, newCompanyName, newCompanyAddress, newCompanyICE);
+      const success = await addUser(newUsername, newUserPassword, newCompanyName, newCompanyAddress, newCompanyICE, newCompanySubtitle);
       if (success) {
         setNewUsername('');
         setNewUserPassword('');
         setNewCompanyName('');
         setNewCompanyAddress('');
         setNewCompanyICE('');
+        setNewCompanySubtitle('');
         setSuccessMessage(t('userCreatedSuccess'));
         setTimeout(() => setSuccessMessage(''), 3000);
       }
@@ -77,7 +83,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ navigateToApp }) => {
 
       <div className="p-6 bg-white rounded-lg shadow-sm">
         <h2 className="text-xl font-bold mb-4 text-slate-700">{t('createNewUser')}</h2>
-        <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
+        <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 items-end">
           <div className="lg:col-span-1">
             <label htmlFor="new-username"className="block mb-1 text-sm font-medium text-slate-600">{t('usernameLabel')}</label>
             <input type="text" id="new-username" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className={`w-full p-2 border ${formError.username ? 'border-red-500' : 'border-slate-300'} bg-slate-100 rounded-md text-slate-900`} />
@@ -103,6 +109,11 @@ const AdminPage: React.FC<AdminPageProps> = ({ navigateToApp }) => {
             <input type="text" id="new-company-ice" value={newCompanyICE} onChange={(e) => setNewCompanyICE(e.target.value)} className={`w-full p-2 border ${formError.companyICE ? 'border-red-500' : 'border-slate-300'} bg-slate-100 rounded-md text-slate-900`} />
             {formError.companyICE && <p className="text-red-500 text-xs mt-1">{formError.companyICE}</p>}
           </div>
+           <div className="lg:col-span-1">
+            <label htmlFor="new-company-subtitle" className="block mb-1 text-sm font-medium text-slate-600">{t('companySubtitleLabel')}</label>
+            <input type="text" id="new-company-subtitle" value={newCompanySubtitle} onChange={(e) => setNewCompanySubtitle(e.target.value)} className={`w-full p-2 border ${formError.companySubtitle ? 'border-red-500' : 'border-slate-300'} bg-slate-100 rounded-md text-slate-900`} />
+            {formError.companySubtitle && <p className="text-red-500 text-xs mt-1">{formError.companySubtitle}</p>}
+          </div>
           <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700">{t('addUserButton')}</button>
         </form>
         {successMessage && <p className="mt-2 text-sm text-green-600">{successMessage}</p>}
@@ -116,8 +127,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ navigateToApp }) => {
               <tr>
                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('usernameLabel')}</th>
                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('companyNameLabel')}</th>
-                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('companyAddressLabel')}</th>
-                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('companyICELabel')}</th>
+                <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('companySubtitleLabel')}</th>
                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderAction')}</th>
               </tr>
             </thead>
@@ -126,8 +136,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ navigateToApp }) => {
                 <tr key={user.id} className="hover:bg-slate-50">
                   <td className="py-2 px-4 border-b text-slate-900">{user.username}</td>
                   <td className="py-2 px-4 border-b text-slate-900">{user.companyName}</td>
-                  <td className="py-2 px-4 border-b text-slate-900">{user.companyAddress}</td>
-                  <td className="py-2 px-4 border-b text-slate-900">{user.companyICE}</td>
+                  <td className="py-2 px-4 border-b text-slate-900 truncate max-w-xs">{user.companySubtitle}</td>
                   <td className="py-2 px-4 border-b">
                     <button onClick={() => removeUser(user.id)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100">
                       <TrashIcon />

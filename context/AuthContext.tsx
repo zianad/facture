@@ -8,9 +8,9 @@ interface AuthContextType {
   users: User[];
   login: (password: string, rememberMe: boolean) => Promise<boolean>;
   logout: () => void;
-  addUser: (username: string, password: string, companyName: string, companyAddress: string, companyICE: string) => Promise<boolean>;
+  addUser: (username: string, password: string, companyName: string, companyAddress: string, companyICE: string, companySubtitle: string) => Promise<boolean>;
   removeUser: (id: string) => Promise<void>;
-  updateUser: (userId: string, data: { username?: string; password?: string; companyName?: string; companyAddress?: string; companyICE?: string }) => Promise<{ success: boolean; message: string }>;
+  updateUser: (userId: string, data: { username?: string; password?: string; companyName?: string; companyAddress?: string; companyICE?: string; companySubtitle?: string; }) => Promise<{ success: boolean; message: string }>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -56,14 +56,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('currentUserId');
   };
 
-  const addUser = async (username: string, password: string, companyName: string, companyAddress: string, companyICE: string): Promise<boolean> => {
+  const addUser = async (username: string, password: string, companyName: string, companyAddress: string, companyICE: string, companySubtitle: string): Promise<boolean> => {
     try {
         const existingUser = await db.users.where({ username }).first();
         if (existingUser) {
             alert(`User ${username} already exists.`);
             return false;
         }
-        const newUser: User = { id: `${Date.now()}`, username, password, companyName, companyAddress, companyICE };
+        const newUser: User = { id: `${Date.now()}`, username, password, companyName, companyAddress, companyICE, companySubtitle };
         await db.users.add(newUser);
         return true;
     } catch (error) {
@@ -80,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await db.users.delete(id);
   };
 
-  const updateUser = async (userId: string, data: { username?: string; password?: string; companyName?: string; companyAddress?: string; companyICE?: string }): Promise<{ success: boolean; message: string }> => {
+  const updateUser = async (userId: string, data: { username?: string; password?: string; companyName?: string; companyAddress?: string; companyICE?: string; companySubtitle?: string; }): Promise<{ success: boolean; message: string }> => {
      try {
         const userToUpdate = await db.users.get(userId);
         if (!userToUpdate) {

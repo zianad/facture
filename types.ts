@@ -26,4 +26,5 @@ export interface User {
     companyName?: string;
     companyAddress?: string;
     companyICE?: string;
+    companySubtitle?: string;
 }

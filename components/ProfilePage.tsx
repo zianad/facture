@@ -10,9 +10,10 @@ const ProfilePage: React.FC = () => {
     const [companyName, setCompanyName] = useState(currentUser?.companyName || '');
     const [companyAddress, setCompanyAddress] = useState(currentUser?.companyAddress || '');
     const [companyICE, setCompanyICE] = useState(currentUser?.companyICE || '');
+    const [companySubtitle, setCompanySubtitle] = useState(currentUser?.companySubtitle || '');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [errors, setErrors] = useState({ username: '', password: '', companyName: '', companyAddress: '', companyICE: '' });
+    const [errors, setErrors] = useState({ username: '', password: '', companyName: '', companyAddress: '', companyICE: '', companySubtitle: '' });
     const [successMessage, setSuccessMessage] = useState('');
     const [serverError, setServerError] = useState('');
 
@@ -22,11 +23,12 @@ const ProfilePage: React.FC = () => {
             setCompanyName(currentUser.companyName || '');
             setCompanyAddress(currentUser.companyAddress || '');
             setCompanyICE(currentUser.companyICE || '');
+            setCompanySubtitle(currentUser.companySubtitle || '');
         }
     }, [currentUser]);
 
     const validateForm = () => {
-        const newErrors = { username: '', password: '', companyName: '', companyAddress: '', companyICE: '' };
+        const newErrors = { username: '', password: '', companyName: '', companyAddress: '', companyICE: '', companySubtitle: '' };
         let isValid = true;
 
         if (!username.trim()) {
@@ -58,6 +60,11 @@ const ProfilePage: React.FC = () => {
             newErrors.companyICE = t('errorCompanyICERequired');
             isValid = false;
         }
+        
+        if (!companySubtitle.trim()) {
+            newErrors.companySubtitle = t('errorCompanySubtitleRequired');
+            isValid = false;
+        }
 
         setErrors(newErrors);
         return isValid;
@@ -72,7 +79,7 @@ const ProfilePage: React.FC = () => {
             return;
         }
 
-        const dataToUpdate: { username?: string; password?: string, companyName?: string, companyAddress?: string; companyICE?: string; } = {};
+        const dataToUpdate: { username?: string; password?: string, companyName?: string, companyAddress?: string; companyICE?: string; companySubtitle?: string; } = {};
         
         if (username !== currentUser.username) {
             dataToUpdate.username = username;
@@ -85,6 +92,9 @@ const ProfilePage: React.FC = () => {
         }
          if (companyICE !== currentUser.companyICE) {
             dataToUpdate.companyICE = companyICE;
+        }
+        if (companySubtitle !== currentUser.companySubtitle) {
+            dataToUpdate.companySubtitle = companySubtitle;
         }
 
         if (newPassword) {
@@ -140,6 +150,20 @@ const ProfilePage: React.FC = () => {
                             className={`w-full p-2 border ${errors.companyName ? 'border-red-500' : 'border-slate-300'} bg-slate-100 rounded-md`}
                         />
                         {errors.companyName && <p className="text-red-500 text-xs mt-1">{errors.companyName}</p>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="company-subtitle" className="block mb-2 text-sm font-medium text-slate-600">
+                            {t('companySubtitleLabel')}
+                        </label>
+                        <input
+                            id="company-subtitle"
+                            type="text"
+                            value={companySubtitle}
+                            onChange={(e) => setCompanySubtitle(e.target.value)}
+                            className={`w-full p-2 border ${errors.companySubtitle ? 'border-red-500' : 'border-slate-300'} bg-slate-100 rounded-md`}
+                        />
+                        {errors.companySubtitle && <p className="text-red-500 text-xs mt-1">{errors.companySubtitle}</p>}
                     </div>
 
                     <div>

@@ -109,28 +109,26 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ invoice, comp
                 </div>
                 
                 <div className="mt-6 border-t pt-6">
-                    {/* Header */}
-                    <div className="flex justify-between items-start mb-8">
-                        <div>
-                            <h3 className="text-xl font-bold text-slate-800">{companyInfo?.companyName || t('yourCompany')}</h3>
-                            <p className="text-sm text-slate-600">{companyInfo?.companyAddress}</p>
-                            <p className="text-sm text-slate-600">ICE: {companyInfo?.companyICE}</p>
+                    {/* Header section */}
+                    <div className="mb-8">
+                        {/* Company Info - Centered */}
+                        <div className="text-center mb-10">
+                            <h2 className="text-4xl font-serif text-blue-700">{companyInfo?.companyName || t('yourCompany')}</h2>
+                            {companyInfo?.companySubtitle && <p className="text-sm text-slate-600 mt-2">{companyInfo.companySubtitle}</p>}
                         </div>
-                        <div className="text-right">
-                            <h2 className="text-3xl font-bold uppercase text-slate-800">{t('invoiceTitle')}</h2>
-                            <p className="text-sm text-slate-600">{t('invoiceNumberLabel')}: {invoice.invoiceNumber}</p>
-                        </div>
-                    </div>
 
-                    {/* Customer and Date */}
-                    <div className="grid grid-cols-2 gap-4 mb-8 pb-4 border-b">
-                        <div>
-                            <h4 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('billToLabel')}</h4>
-                            <p className="font-bold text-slate-800">{invoice.customerName}</p>
+                        {/* Client Info - Placed on the right */}
+                        <div className="flex justify-end mb-10">
+                            <div className="text-right">
+                                <p className="font-semibold text-slate-700">{t('customerNameLabel')}: <span className="font-bold">{invoice.customerName}</span></p>
+                            </div>
                         </div>
-                        <div className="text-right">
-                            <h4 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('invoiceDateLabel')}</h4>
-                            <p className="font-medium text-slate-800">{formatDate(invoice.invoiceDate)}</p>
+                        
+                        {/* Invoice Details - Left Aligned */}
+                        <div className="border-b pb-8 mb-8">
+                            <h3 className="text-2xl font-bold text-blue-700 mb-2">{t('invoiceTitle')}</h3>
+                            <p className="font-semibold text-slate-700">{t('invoiceNumberLabel')}: <span className="font-normal">{invoice.invoiceNumber}</span></p>
+                            <p className="font-semibold text-slate-700">{t('invoiceDateLabel')}: <span className="font-normal">{formatDate(invoice.invoiceDate)}</span></p>
                         </div>
                     </div>
                     
