@@ -1,95 +1,50 @@
 import type { Item } from '../types';
 
-// A simplified version of the Item type for the AI prompt
-interface PromptItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
-
-// The expected format of a single item object returned by the AI service
-interface AiGeneratedItem {
-    id: string;
-    name: string;
-    price: number;
-}
-
 /**
- * Generates a list of items for an invoice by calling the AI service.
- * It tries to find a combination of items from the inventory that totals
+ * Generates a list of items for an invoice by using a local Web Worker
+ * to solve the knapsack-like problem.
+ * It finds a combination of items from the inventory that totals
  * as close as possible to the target amount.
  *
  * @param inventory The full list of available inventory items.
  * @param targetTotal The target total amount for the invoice (HT - hors taxes).
- * @param _invoiceDate The date of the invoice (currently unused by the AI but kept for signature consistency).
- * @returns A promise that resolves to an array of Item objects for the invoice, or null if an error occurs.
+ * @param _invoiceDate The date of the invoice (unused, kept for signature).
+ * @returns A promise that resolves to an array of Item objects for the invoice, or null if no combination is possible.
  */
-export const generateInvoiceItems = async (
+export const generateInvoiceItems = (
   inventory: Item[],
   targetTotal: number,
   _invoiceDate: string
 ): Promise<Item[] | null> => {
-  // The API needs a simplified list of items with their available quantities.
-  const itemsForPrompt: PromptItem[] = inventory
-    .filter(item => item.quantity > 0 && item.price > 0)
-    .map(({ id, name, price, quantity }) => ({
-      id,
-      name,
-      price,
-      quantity,
-    }));
+  return new Promise((resolve, reject) => {
+    // Filter out items that cannot be part of a solution.
+    const availableItems = inventory.filter(item => item.quantity > 0 && item.price > 0);
+    
+    if (availableItems.length === 0 || targetTotal <= 0) {
+      console.warn("Inventory is empty or target is zero. Cannot generate invoice items.");
+      resolve([]); // Resolve with an empty array.
+      return;
+    }
 
-  if (itemsForPrompt.length === 0) {
-    console.warn("Inventory is empty or has no items with positive price/quantity. Cannot generate invoice items.");
-    return []; // Return empty array, consistent with AI behavior for no possible combination.
-  }
-  
-  try {
-    const response = await fetch('/api/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        itemsForPrompt,
-        targetTotal,
-      }),
+    // The solver is in a separate worker file to avoid blocking the main UI thread.
+    const worker = new Worker(new URL('./solver.worker.ts', import.meta.url), { type: 'module' });
+
+    worker.onmessage = (event: MessageEvent<Item[] | null>) => {
+      resolve(event.data);
+      worker.terminate(); // Clean up the worker after it's done.
+    };
+
+    worker.onerror = (error) => {
+      console.error('Error from solver worker:', error);
+      // Resolve with null to indicate failure, which the UI can handle as "not found".
+      resolve(null);
+      worker.terminate();
+    };
+
+    // Send the necessary data to the worker to start the calculation.
+    worker.postMessage({
+      items: availableItems,
+      target: targetTotal,
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({})); // Gracefully handle non-JSON error bodies.
-      console.error('Error from AI service:', errorData.details || response.statusText);
-      return null;
-    }
-
-    const result: AiGeneratedItem[] = await response.json();
-
-    if (!Array.isArray(result)) {
-        console.error('AI service returned an unexpected data format.');
-        return null;
-    }
-
-    // The AI returns a flat list of items, where duplicates mean multiple units of the same item.
-    // We need to map these simplified item objects back to the full Item objects from our inventory.
-    const inventoryMap = new Map<string, Item>(inventory.map(item => [item.id, item]));
-    const invoiceItems: Item[] = [];
-    
-    for (const aiItem of result) {
-        const fullItem = inventoryMap.get(aiItem.id);
-        if (fullItem) {
-            // Push a copy of the item to represent one unit being used in the invoice.
-            // The InvoicePreview component will handle grouping these items by counting occurrences.
-            invoiceItems.push({ ...fullItem });
-        } else {
-            console.warn(`AI returned an item with ID "${aiItem.id}" which was not found in the original inventory.`);
-        }
-    }
-    
-    return invoiceItems;
-
-  } catch (error) {
-    console.error('Failed to call or process response from invoice generation API:', error);
-    return null;
-  }
+  });
 };
