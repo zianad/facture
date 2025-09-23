@@ -9,6 +9,7 @@ interface InvoicePageProps {
   invoices: InvoiceData[];
   addInvoice: (invoice: Omit<InvoiceData, 'id' | 'userId'>) => Promise<InvoiceData | null>;
   removeInvoice: (id: string) => void;
+  deductInventoryForInvoice: (items: Item[]) => Promise<void>;
   navigateToInventory: () => void;
 }
 
@@ -174,7 +175,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ invoice, comp
 };
 
 
-const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoice, removeInvoice, navigateToInventory }) => {
+const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoice, removeInvoice, deductInventoryForInvoice, navigateToInventory }) => {
     const { t } = useTranslation();
     const { currentUser } = useAuth();
     
@@ -209,11 +210,20 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoi
             return;
         }
 
+        // Filter inventory to only include items available on or before the invoice date.
+        const availableInventory = inventory.filter(item => item.purchaseDate <= invoiceDate);
+
+        if (inventory.length > 0 && availableInventory.length === 0) {
+            setError(t('errorNoItemsForDate'));
+            setIsLoading(false);
+            return;
+        }
+
         const tvaRate = 0.20;
         const totalHT = totalTTC / (1 + tvaRate);
 
         try {
-            const items = await generateInvoiceItems(inventory, totalHT, invoiceDate);
+            const items = await generateInvoiceItems(availableInventory, totalHT, invoiceDate);
             if (items && items.length > 0) {
                 setGeneratedItems(items);
             } else {
@@ -253,6 +263,9 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoi
         
         const newInvoice = await addInvoice(newInvoiceData);
         if (newInvoice) {
+            // Deduct items from inventory after saving the invoice
+            await deductInventoryForInvoice(generatedItems);
+            
             setInvoiceNumber('');
             setCustomerName('');
             setTargetTotal('');

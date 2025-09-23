@@ -48,6 +48,7 @@
   "errorInvalidAmount": "الرجاء إدخال مبلغ إجمالي صالح وأكبر من صفر.",
   "errorNoCombination": "لم يتم العثور على أي تشكيلة من السلع. حاول تعديل المبلغ أو إضافة المزيد من السلع.",
   "errorGeneratingItems": "حدث خطأ أثناء إنشاء السلع. الرجاء المحاولة مرة أخرى.",
+  "errorNoItemsForDate": "لا توجد أصناف متاحة في المخزون للتاريخ المحدد.",
   "generatedInvoiceItemsTitle": "السلع التي تم إنشاؤها للفاتورة",
   "totalAmountLabel": "المبلغ الإجمالي",
   "totalDifferenceLabel": "الفرق عن المستهدف",

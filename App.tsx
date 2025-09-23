@@ -92,9 +92,77 @@ const App: React.FC = () => {
     return newInvoice;
   };
 
+  const deductInventoryForInvoice = async (invoiceItems: Item[]) => {
+    if (!currentUser) return;
+
+    const itemCountsToDeduct: { [key: string]: number } = {};
+    for (const item of invoiceItems) {
+        itemCountsToDeduct[item.id] = (itemCountsToDeduct[item.id] || 0) + 1;
+    }
+
+    const updates: { key: string; changes: Partial<Omit<Item, 'id'>> }[] = [];
+    const itemIds = Object.keys(itemCountsToDeduct);
+    const inventoryItems = await db.inventory.bulkGet(itemIds);
+
+    inventoryItems.forEach(inventoryItem => {
+        if (inventoryItem) {
+            const countToDeduct = itemCountsToDeduct[inventoryItem.id];
+            updates.push({
+                key: inventoryItem.id,
+                changes: { quantity: Math.max(0, inventoryItem.quantity - countToDeduct) }
+            });
+        }
+    });
+    
+    if (updates.length > 0) {
+        await db.inventory.bulkUpdate(updates);
+        // Re-fetch inventory to update state
+        const userInventory = await db.inventory.where({ userId: currentUser.id }).toArray();
+        setInventory(userInventory);
+    }
+  };
+
   const removeInvoice = async (id: string) => {
-    await db.invoices.delete(id);
-    setInvoices(prev => prev.filter(inv => inv.id !== id));
+    if (!currentUser) return;
+    
+    const invoiceToDelete = invoices.find(inv => inv.id === id);
+
+    if (invoiceToDelete) {
+          const itemCountsToRestore: { [key: string]: number } = {};
+        for (const item of invoiceToDelete.items) {
+            itemCountsToRestore[item.id] = (itemCountsToRestore[item.id] || 0) + 1;
+        }
+
+        const updates: { key: string; changes: Partial<Omit<Item, 'id'>> }[] = [];
+        const itemIds = Object.keys(itemCountsToRestore);
+        const inventoryItems = await db.inventory.bulkGet(itemIds);
+
+        inventoryItems.forEach(inventoryItem => {
+            if (inventoryItem) {
+                const countToRestore = itemCountsToRestore[inventoryItem.id];
+                updates.push({
+                    key: inventoryItem.id,
+                    changes: { quantity: inventoryItem.quantity + countToRestore }
+                });
+            }
+        });
+        
+        await db.transaction('rw', db.inventory, db.invoices, async () => {
+            if (updates.length > 0) {
+                await db.inventory.bulkUpdate(updates);
+            }
+            await db.invoices.delete(id);
+        });
+        
+        // Refresh state
+        setInvoices(prev => prev.filter(inv => inv.id !== id));
+        const userInventory = await db.inventory.where({ userId: currentUser.id }).toArray();
+        setInventory(userInventory);
+    } else {
+        // Fallback: if not found in state, just delete from DB
+        await db.invoices.delete(id);
+        setInvoices(prev => prev.filter(inv => inv.id !== id));
+    }
   };
 
   if (view === 'admin') {
@@ -126,6 +194,7 @@ const App: React.FC = () => {
             invoices={invoices}
             addInvoice={addInvoice}
             removeInvoice={removeInvoice}
+            deductInventoryForInvoice={deductInventoryForInvoice}
           />
         );
       case 'profile':
