@@ -147,11 +147,16 @@ function App() {
             }, {} as Record<string, number>);
 
             for (const itemId in itemCounts) {
-                const currentItem = await db.inventory.get(itemId);
-                if (currentItem && currentItem.quantity >= itemCounts[itemId]) {
-                    await db.inventory.update(itemId, { quantity: currentItem.quantity - itemCounts[itemId] });
-                } else {
-                    throw new Error(`Insufficient stock for item ${itemId}`);
+                const quantityToDeduct = itemCounts[itemId];
+                const updatedCount = await db.inventory.where({ id: itemId }).modify(item => {
+                    if (item.quantity < quantityToDeduct) {
+                        throw new Error(`Insufficient stock for item with ID ${itemId}`);
+                    }
+                    item.quantity -= quantityToDeduct;
+                });
+
+                if (updatedCount === 0) {
+                    throw new Error(`Item with ID ${itemId} not found during invoice creation.`);
                 }
             }
         });

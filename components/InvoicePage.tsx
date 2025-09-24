@@ -90,6 +90,11 @@ const InvoiceDetailView: React.FC<{ invoice: InvoiceData; user: User; onClose: (
                   -webkit-print-color-adjust: exact;
                   print-color-adjust: exact;
                 }
+                @media print {
+                    thead {
+                        display: table-row-group; /* Prevents header repeating on each page */
+                    }
+                }
             </style>
         </head>
         <body class="p-8">
@@ -153,7 +158,7 @@ const InvoiceDetailView: React.FC<{ invoice: InvoiceData; user: User; onClose: (
                 </div>
             </section>
             <footer class="mt-12 text-center text-xs text-slate-500">
-                <p>${user.companyName || ''} - ${user.companyAddress || ''} - ${t('iceLabel')}: ${user.companyICE || ''}</p>
+                <p>${user.companyName || ''} - ${user.companyAddress || ''} - ${t('companyICELabel')}: ${user.companyICE || ''}</p>
             </footer>
         </body>
         </html>
