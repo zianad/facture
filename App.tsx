@@ -1,262 +1,212 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useAuth } from './context/AuthContext';
+import { useTranslation } from './context/LanguageContext';
+import { db } from './services/db';
 import type { Item, InvoiceData } from './types';
-import InventoryPage from './components/InventoryPage';
-import InvoicePage from './components/InvoicePage';
+
 import LoginPage from './components/LoginPage';
 import AdminPage from './components/AdminPage';
+import InventoryPage from './components/InventoryPage';
+import InvoicePage from './components/InvoicePage';
 import ProfilePage from './components/ProfilePage';
-import { useTranslation } from './context/LanguageContext';
-import { useAuth } from './context/AuthContext';
-import { db } from './services/db';
 
-type Page = 'inventory' | 'invoice' | 'profile';
-
-const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<Page>('inventory');
-  const [view, setView] = useState<'app' | 'admin'>('app');
-
-  const { currentUser, logout } = useAuth();
-  
-  const [inventory, setInventory] = useState<Item[]>([]);
-  const [invoices, setInvoices] = useState<InvoiceData[]>([]);
-  
+// Sidebar component is included here to avoid creating new files.
+const Sidebar: React.FC<{
+  currentPage: string;
+  setCurrentPage: (page: 'inventory' | 'invoice' | 'profile') => void;
+  logout: () => void;
+  username: string;
+}> = ({ currentPage, setCurrentPage, logout, username }) => {
   const { t, language, changeLanguage } = useTranslation();
 
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (currentUser) {
-        try {
-          const userInventory = await db.inventory.where({ userId: currentUser.id }).toArray();
-          setInventory(userInventory);
-          
-          const userInvoices = await db.invoices.where({ userId: currentUser.id }).toArray();
-          setInvoices(userInvoices.sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime()));
+  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    changeLanguage(e.target.value as 'ar' | 'fr');
+  };
+  
+  const navItems = [
+    { id: 'inventory', label: t('inventoryPageTitle') },
+    { id: 'invoice', label: t('invoicePageTitle') },
+    { id: 'profile', label: t('profilePageTitle') },
+  ];
 
-          setCurrentPage('inventory');
-          setView('app');
-        } catch (error) {
-          console.error("Failed to load user data from IndexedDB", error);
-        }
-      } else {
-        // Clear data on logout
-        setInventory([]);
-        setInvoices([]);
-      }
+  return (
+    <div className="w-64 h-screen bg-slate-800 text-white flex flex-col fixed">
+        <div className="p-4 border-b border-slate-700">
+            <h1 className="text-2xl font-bold">{t('appTitle')}</h1>
+            <p className="text-sm text-slate-400">{t('welcomeMessage', { username })}</p>
+        </div>
+        <nav className="flex-1 p-4 space-y-2">
+            {navItems.map(item => (
+                <button
+                    key={item.id}
+                    onClick={() => setCurrentPage(item.id as 'inventory' | 'invoice' | 'profile')}
+                    className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
+                        currentPage === item.id
+                            ? 'bg-blue-600'
+                            : 'hover:bg-slate-700'
+                    }`}
+                >
+                    {item.label}
+                </button>
+            ))}
+        </nav>
+        <div className="p-4 border-t border-slate-700 space-y-4">
+            <div>
+              <label htmlFor="language-select" className="text-sm text-slate-400 block mb-1">{t('languageLabel')}</label>
+              <select
+                id="language-select"
+                value={language}
+                onChange={handleLanguageChange}
+                className="w-full p-2 rounded-md bg-slate-700 text-white border border-slate-600 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="fr">Français</option>
+                <option value="ar">العربية</option>
+              </select>
+            </div>
+            <button
+                onClick={logout}
+                className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md"
+            >
+                {t('logoutButton')}
+            </button>
+        </div>
+    </div>
+  );
+};
+
+
+type Page = 'inventory' | 'invoice' | 'profile' | 'admin' | 'login';
+
+function App() {
+  const { currentUser, logout } = useAuth();
+  // We use a separate 'view' state to manage top-level views like login/admin vs the main app's internal page.
+  const [view, setView] = useState<Page>(currentUser ? 'inventory' : 'login');
+  const [currentPage, setCurrentPage] = useState<'inventory' | 'invoice' | 'profile'>('inventory');
+  
+  const inventory = useLiveQuery(() => 
+    currentUser ? db.inventory.where('userId').equals(currentUser.id).toArray() : [],
+    [currentUser]
+  ) || [];
+
+  const invoices = useLiveQuery(() => 
+    currentUser ? db.invoices.where('userId').equals(currentUser.id).toArray() : [],
+    [currentUser]
+  ) || [];
+  
+  const handleSetCurrentPage = (page: 'inventory' | 'invoice' | 'profile') => {
+    setCurrentPage(page);
+    setView(page);
+  };
+  
+  // --- Inventory Management ---
+  const addItem = useCallback(async (item: Omit<Item, 'id' | 'userId'>) => {
+    if (!currentUser) return;
+    const newItem: Item = {
+      ...item,
+      id: crypto.randomUUID(),
+      userId: currentUser.id
     };
-
-    loadUserData();
+    await db.inventory.add(newItem);
   }, [currentUser]);
 
-
-  const addItemToInventory = async (item: Omit<Item, 'id' | 'userId'>) => {
+  const addMultipleItems = useCallback(async (items: Omit<Item, 'id' | 'userId'>[]) => {
     if (!currentUser) return;
-    const newItem: Item = { ...item, id: `${Date.now()}-${Math.random()}`, userId: currentUser.id };
-    await db.inventory.add(newItem);
-    setInventory(prev => [...prev, newItem]);
-  };
-
-  const addMultipleItemsToInventory = async (items: Omit<Item, 'id' | 'userId'>[]) => {
-    if (!currentUser || items.length === 0) return;
     const newItems: Item[] = items.map(item => ({
       ...item,
-      id: `${Date.now()}-${Math.random()}-${item.reference}`,
-      userId: currentUser.id,
+      id: crypto.randomUUID(),
+      userId: currentUser.id
     }));
     await db.inventory.bulkAdd(newItems);
-    setInventory(prev => [...prev, ...newItems]);
-  };
-  
-  const removeItemFromInventory = async (id: string) => {
+  }, [currentUser]);
+
+  const removeItem = useCallback(async (id: string) => {
     await db.inventory.delete(id);
-    setInventory(prev => prev.filter(item => item.id !== id));
-  }
+  }, []);
 
-  const updateItemInInventory = async (id: string, updatedData: Partial<Omit<Item, 'id' | 'userId'>>) => {
+  const updateItem = useCallback(async (id: string, updatedData: Partial<Omit<Item, 'id' | 'userId'>>) => {
     await db.inventory.update(id, updatedData);
-    setInventory(prev => 
-      prev.map(item => 
-        item.id === id ? { ...item, ...updatedData } : item
-      )
-    );
-  };
-  
-  const addInvoice = async (invoice: Omit<InvoiceData, 'id' | 'userId'>) => {
-     if (!currentUser) return null;
-     const newInvoice: InvoiceData = {
-        ...invoice,
-        id: `internal-${Date.now()}-${Math.random()}`,
-        userId: currentUser.id
-     };
+  }, []);
+
+
+  // --- Invoice Management ---
+  const addInvoice = useCallback(async (invoice: Omit<InvoiceData, 'id' | 'userId'>) => {
+    if (!currentUser) return;
+    const newInvoice: InvoiceData = {
+      ...invoice,
+      id: crypto.randomUUID(),
+      userId: currentUser.id
+    };
     await db.invoices.add(newInvoice);
-    setInvoices(prev => [newInvoice, ...prev]);
-    return newInvoice;
-  };
+  }, [currentUser]);
 
-  const deductInventoryForInvoice = async (invoiceItems: Item[]) => {
-    if (!currentUser) return;
-
-    const itemCountsToDeduct: { [key: string]: number } = {};
-    for (const item of invoiceItems) {
-        itemCountsToDeduct[item.id] = (itemCountsToDeduct[item.id] || 0) + 1;
-    }
-
-    const updates: { key: string; changes: Partial<Omit<Item, 'id'>> }[] = [];
-    const itemIds = Object.keys(itemCountsToDeduct);
-    const inventoryItems = await db.inventory.bulkGet(itemIds);
-
-    inventoryItems.forEach(inventoryItem => {
-        if (inventoryItem) {
-            const countToDeduct = itemCountsToDeduct[inventoryItem.id];
-            updates.push({
-                key: inventoryItem.id,
-                changes: { quantity: Math.max(0, inventoryItem.quantity - countToDeduct) }
-            });
-        }
-    });
-    
-    if (updates.length > 0) {
-        await db.inventory.bulkUpdate(updates);
-        // Re-fetch inventory to update state
-        const userInventory = await db.inventory.where({ userId: currentUser.id }).toArray();
-        setInventory(userInventory);
-    }
-  };
-
-  const removeInvoice = async (id: string) => {
-    if (!currentUser) return;
-    
-    const invoiceToDelete = invoices.find(inv => inv.id === id);
-
-    if (invoiceToDelete) {
-          const itemCountsToRestore: { [key: string]: number } = {};
-        for (const item of invoiceToDelete.items) {
-            itemCountsToRestore[item.id] = (itemCountsToRestore[item.id] || 0) + 1;
-        }
-
-        const updates: { key: string; changes: Partial<Omit<Item, 'id'>> }[] = [];
-        const itemIds = Object.keys(itemCountsToRestore);
-        const inventoryItems = await db.inventory.bulkGet(itemIds);
-
-        inventoryItems.forEach(inventoryItem => {
-            if (inventoryItem) {
-                const countToRestore = itemCountsToRestore[inventoryItem.id];
-                updates.push({
-                    key: inventoryItem.id,
-                    changes: { quantity: inventoryItem.quantity + countToRestore }
-                });
-            }
-        });
-        
-        await db.transaction('rw', db.inventory, db.invoices, async () => {
-            if (updates.length > 0) {
-                await db.inventory.bulkUpdate(updates);
-            }
-            await db.invoices.delete(id);
-        });
-        
-        // Refresh state
-        setInvoices(prev => prev.filter(inv => inv.id !== id));
-        const userInventory = await db.inventory.where({ userId: currentUser.id }).toArray();
-        setInventory(userInventory);
-    } else {
-        // Fallback: if not found in state, just delete from DB
-        await db.invoices.delete(id);
-        setInvoices(prev => prev.filter(inv => inv.id !== id));
-    }
-  };
-
-  if (view === 'admin') {
-      return <AdminPage navigateToApp={() => setView('app')} />;
-  }
+  const removeInvoice = useCallback(async (id: string) => {
+    await db.invoices.delete(id);
+  }, []);
+  
+  const updateInvoice = useCallback(async (id: string, updatedData: Partial<Omit<InvoiceData, 'id' | 'userId'>>) => {
+      await db.invoices.update(id, updatedData);
+  }, []);
 
   if (!currentUser) {
-    return <LoginPage navigateToAdmin={() => setView('admin')} />;
+      if (view === 'admin') {
+          return <AdminPage navigateToApp={() => setView('login')} />;
+      }
+      return <LoginPage navigateToAdmin={() => setView('admin')} />;
   }
 
-  const renderMainContent = () => {
+
+  const renderContent = () => {
     switch (currentPage) {
       case 'inventory':
-        return (
-          <InventoryPage
-            inventory={inventory}
-            addItem={addItemToInventory}
-            addMultipleItems={addMultipleItemsToInventory}
-            removeItem={removeItemFromInventory}
-            updateItem={updateItemInInventory}
-            navigateToInvoice={() => setCurrentPage('invoice')}
-          />
-        );
+        return <InventoryPage
+          inventory={inventory}
+          addItem={addItem}
+          addMultipleItems={addMultipleItems}
+          removeItem={removeItem}
+          updateItem={updateItem}
+          navigateToInvoice={() => handleSetCurrentPage('invoice')}
+        />;
       case 'invoice':
-        return (
-          <InvoicePage
-            inventory={inventory}
-            navigateToInventory={() => setCurrentPage('inventory')}
-            invoices={invoices}
-            addInvoice={addInvoice}
-            removeInvoice={removeInvoice}
-            deductInventoryForInvoice={deductInventoryForInvoice}
-          />
-        );
+        return <InvoicePage 
+          inventory={inventory}
+          invoices={invoices}
+          addInvoice={addInvoice}
+          removeInvoice={removeInvoice}
+          updateInvoice={updateInvoice}
+          currentUser={currentUser}
+          navigateToInventory={() => handleSetCurrentPage('inventory')}
+        />;
       case 'profile':
         return <ProfilePage />;
       default:
-        return <div>Page not found</div>;
+        return <InventoryPage
+          inventory={inventory}
+          addItem={addItem}
+          addMultipleItems={addMultipleItems}
+          removeItem={removeItem}
+          updateItem={updateItem}
+          navigateToInvoice={() => handleSetCurrentPage('invoice')}
+        />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans text-slate-800">
-      <header className="bg-white shadow-md">
-        <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-slate-700">{t('appName')}</h1>
-          <div className="flex items-center gap-x-8">
-            <div className="space-x-4 space-x-reverse">
-              <button
-                onClick={() => setCurrentPage('inventory')}
-                className={`pb-2 font-semibold ${currentPage === 'inventory' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-blue-600'}`}
-              >
-                {t('manageInventory')}
-              </button>
-              <button
-                onClick={() => setCurrentPage('invoice')}
-                className={`pb-2 font-semibold ${currentPage === 'invoice' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-blue-600'}`}
-              >
-                {t('createInvoice')}
-              </button>
-               <button
-                onClick={() => setCurrentPage('profile')}
-                className={`pb-2 font-semibold ${currentPage === 'profile' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-blue-600'}`}
-              >
-                {t('profileNavButton')}
-              </button>
-            </div>
-             <div className="flex items-center gap-x-4">
-               <span className="text-sm text-slate-600">{t('welcomeUser', {name: currentUser.username})}</span>
-                <button onClick={logout} className="bg-red-500 text-white px-3 py-1 rounded-md text-sm hover:bg-red-600">{t('logoutButton')}</button>
-              </div>
-            <div className="flex items-center">
-              <label htmlFor="language-select" className="sr-only">{t('language')}</label>
-              <select
-                id="language-select"
-                value={language}
-                onChange={(e) => changeLanguage(e.target.value as 'ar' | 'fr')}
-                className="p-2 border-slate-200 border rounded-md bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="ar">{t('arabic')}</option>
-                <option value="fr">{t('french')}</option>
-              </select>
-            </div>
-          </div>
-        </nav>
-      </header>
-      <main className="container mx-auto p-6">
-        {renderMainContent()}
+    <div className="flex bg-slate-100 min-h-screen">
+      <Sidebar 
+        currentPage={currentPage} 
+        setCurrentPage={handleSetCurrentPage}
+        logout={() => {
+          logout();
+          setView('login');
+        }} 
+        username={currentUser.username}
+      />
+      <main className="flex-1 p-6" style={{ marginLeft: '16rem' }}> {/* ml-64 equivalent */}
+        {renderContent()}
       </main>
-       <footer className="text-center py-4 text-slate-500 text-sm">
-        <p>{t('developedBy')}</p>
-      </footer>
     </div>
   );
-};
+}
 
 export default App;

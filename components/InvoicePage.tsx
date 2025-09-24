@@ -10,6 +10,7 @@ interface InvoicePageProps {
   removeInvoice: (id: string) => void;
   updateInvoice: (id: string, updatedData: Partial<Omit<InvoiceData, 'id' | 'userId'>>) => void;
   currentUser: User;
+  navigateToInventory: () => void;
 }
 
 const TrashIcon = () => (
@@ -149,7 +150,7 @@ const InvoiceDetailView: React.FC<{ invoice: InvoiceData; user: User; onClose: (
 };
 
 
-const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoice, removeInvoice, currentUser }) => {
+const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoice, removeInvoice, currentUser, navigateToInventory }) => {
   const { t } = useTranslation();
   
   const [customerName, setCustomerName] = useState('');
@@ -320,6 +321,15 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoi
             </tbody>
           </table>
         </div>
+      </div>
+      
+      <div className="text-center">
+        <button
+          onClick={navigateToInventory}
+          className="bg-slate-600 text-white px-6 py-2 rounded-md hover:bg-slate-700 transition-colors"
+        >
+          {t('goToInventoryPageButton')}
+        </button>
       </div>
     </div>
   );
