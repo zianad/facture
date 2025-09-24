@@ -1,370 +1,288 @@
 import React, { useState, useMemo, useRef } from 'react';
-import type { InvoiceData, Item, User } from '../types';
+import type { Item, InvoiceData } from '../types';
+import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../context/LanguageContext';
 import { generateInvoiceItems } from '../services/invoiceService';
-// NOTE: This component uses `react-to-print`. Ensure this library is installed in your project.
-// You can install it with: npm install react-to-print
 import { useReactToPrint } from 'react-to-print';
 
-// --- ICONS (to avoid creating new files) ---
+const EyeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>;
+const TrashIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>;
+const PrintIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h1v-4a1 1 0 011-1h8a1 1 0 011 1v4h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" /></svg>;
 
-const PlusIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mx-2" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-    </svg>
-);
+const InvoiceDetailView = React.forwardRef<HTMLDivElement, { invoice: InvoiceData }>(({ invoice }, ref) => {
+    const { currentUser } = useAuth();
+    const { t } = useTranslation();
+    const VAT_RATE = 0.20; // 20%
 
-const TrashIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-  </svg>
-);
+    const groupedItems = useMemo(() => {
+        const groups = new Map<string, { item: Item; quantity: number; totalHT: number }>();
+        invoice.items.forEach(item => {
+            const key = item.ref;
+            if (groups.has(key)) {
+                const existing = groups.get(key)!;
+                existing.quantity += 1;
+                existing.totalHT += item.purchasePrice;
+            } else {
+                groups.set(key, { item, quantity: 1, totalHT: item.purchasePrice });
+            }
+        });
+        return Array.from(groups.values());
+    }, [invoice.items]);
 
-const EyeIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-    </svg>
-);
-
-const PrintIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
-    </svg>
-);
-
-
-// --- INVOICE TEMPLATE (to avoid creating new files) ---
-
-type InvoiceTemplateProps = {
-  invoice: InvoiceData | null;
-  user: User | null;
-};
-
-const InvoiceTemplateComponent = React.forwardRef<HTMLDivElement, InvoiceTemplateProps>(({ invoice, user }, ref) => {
-    const { t, language } = useTranslation();
-
-    if (!invoice || !user) {
-        return <div ref={ref}></div>;
-    }
-
-    const totalHT = invoice.items.reduce((sum, item) => sum + item.price, 0);
-    const tvaRate = 0.20; // Assuming 20% TVA
-    const tva = totalHT * tvaRate;
-    const totalTTC = totalHT + tva;
-    
-    // Group items for display
-    const groupedItems = invoice.items.reduce((acc, item) => {
-        const existing = acc.find(i => i.reference === item.reference);
-        if (existing) {
-            existing.quantity += 1;
-            existing.totalPrice += item.price;
-        } else {
-            acc.push({ ...item, quantity: 1, totalPrice: item.price });
-        }
-        return acc;
-    }, [] as (Item & { quantity: number; totalPrice: number })[]);
+    const totalHT = groupedItems.reduce((sum, group) => sum + group.totalHT, 0);
+    const totalTVA = totalHT * VAT_RATE;
+    const totalTTC = invoice.totalAmount;
 
     return (
-        <div ref={ref} className={`p-10 bg-white text-sm text-slate-800 font-sans ${language === 'ar' ? 'rtl font-serif' : 'ltr'}`}>
-            <header className="flex justify-between items-start mb-10">
-                <div className="text-right">
-                    <h1 className="text-2xl font-bold uppercase text-slate-900">{user.companyName}</h1>
-                    <p className="text-slate-600">{user.companySubtitle}</p>
-                    <p className="text-slate-500">{user.companyAddress}</p>
-                    <p className="text-slate-500">{t('iceLabel')}: {user.companyICE}</p>
-                </div>
-                <div className="text-left">
-                     <h2 className="text-2xl font-bold uppercase text-slate-900">{t('invoiceTitle')}</h2>
-                     <p>{t('invoiceNumberLabel')}: {invoice.invoiceNumber}</p>
-                     <p>{t('dateLabel')}: {new Date(invoice.invoiceDate).toLocaleDateString()}</p>
-                </div>
+        <div ref={ref} className="p-8 bg-white text-black font-sans text-sm">
+             <style type="text/css" media="print">
+                {`
+                @page { size: A4; margin: 0; }
+                body { -webkit-print-color-adjust: exact; }
+                thead { display: table-header-group; }
+                tfoot { display: table-footer-group; }
+                tr { page-break-inside: avoid; }
+                .invoice-table thead th {
+                    -webkit-print-color-adjust: exact;
+                    background-color: #f3f4f6 !important;
+                 }
+                `}
+            </style>
+            <header className="mb-8 text-center">
+                <h1 className="text-3xl font-bold text-blue-800">{currentUser?.companyName}</h1>
+                <p className="text-gray-600">{currentUser?.companySubtitle}</p>
             </header>
-            
-            <section className="mb-10">
-                <div className="border border-slate-300 p-4 rounded-md">
-                     <h3 className="font-semibold text-slate-600 mb-2">{t('billToLabel')}</h3>
-                     <p className="font-bold">{invoice.customerName}</p>
+            <div className="grid grid-cols-2 gap-4 mb-8">
+                 <div>
+                    <h2 className="font-bold text-lg mb-2 text-blue-700">Facture</h2>
+                    <p><strong>{t('invoiceNumberLabel')}:</strong> {invoice.invoiceNumber}</p>
+                    <p><strong>{t('invoiceDateLabel')}:</strong> {invoice.date}</p>
                 </div>
-            </section>
-            
-            <section>
-                 <table className="w-full text-right">
-                    <thead className="bg-slate-100">
-                        <tr>
-                            <th className="p-2 font-semibold">{t('tableHeaderItemReference')}</th>
-                            <th className="p-2 font-semibold">{t('tableHeaderItemName')}</th>
-                            <th className="p-2 font-semibold">{t('tableHeaderQuantity')}</th>
-                            <th className="p-2 font-semibold">{t('tableHeaderUnitPrice')}</th>
-                            <th className="p-2 font-semibold">{t('tableHeaderTotalHT')}</th>
+                 <div className="text-right">
+                    <h2 className="font-bold text-lg mb-2">{t('customerNameLabel')}</h2>
+                    <p>{invoice.customerName}</p>
+                </div>
+            </div>
+
+            <table className="w-full mb-8 invoice-table">
+                <thead className="bg-gray-100">
+                    <tr>
+                        <th className="p-2 text-left font-bold">{t('ref')}</th>
+                        <th className="p-2 text-left font-bold">{t('itemName')}</th>
+                        <th className="p-2 text-right font-bold">{t('quantity')}</th>
+                        <th className="p-2 text-right font-bold">{t('unitPriceHT')}</th>
+                        <th className="p-2 text-right font-bold">{t('totalHT')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {groupedItems.map(({ item, quantity, totalHT }) => (
+                        <tr key={item.id} className="border-b">
+                            <td className="p-2">{item.ref}</td>
+                            <td className="p-2">{item.name}</td>
+                            <td className="p-2 text-right">{quantity}</td>
+                            <td className="p-2 text-right">{item.purchasePrice.toFixed(2)}</td>
+                            <td className="p-2 text-right">{totalHT.toFixed(2)}</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {groupedItems.map((item) => (
-                             <tr key={item.reference} className="border-b">
-                                <td className="p-2">{item.reference}</td>
-                                <td className="p-2">{item.name}</td>
-                                <td className="p-2">{item.quantity}</td>
-                                <td className="p-2">{item.price.toFixed(2)}</td>
-                                <td className="p-2">{item.totalPrice.toFixed(2)}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                 </table>
-            </section>
-            
-            <section className="mt-8 flex justify-end">
+                    ))}
+                </tbody>
+            </table>
+
+            <div className="flex justify-end mb-8">
                 <div className="w-1/2">
-                    <table className="w-full text-right">
+                    <table className="w-full">
                         <tbody>
-                            <tr>
-                                <td className="p-2 font-semibold">{t('totalHTLabel')}:</td>
-                                <td className="p-2">{totalHT.toFixed(2)}</td>
+                            <tr className="border-t">
+                                <td className="p-2 font-bold">{t('totalHT')}</td>
+                                <td className="p-2 text-right">{totalHT.toFixed(2)}</td>
                             </tr>
                             <tr>
-                                <td className="p-2 font-semibold">{t('tvaLabel')} ({(tvaRate * 100).toFixed(0)}%):</td>
-                                <td className="p-2">{tva.toFixed(2)}</td>
+                                <td className="p-2 font-bold">{t('totalTVA')} ({(VAT_RATE * 100).toFixed(0)}%)</td>
+                                <td className="p-2 text-right">{totalTVA.toFixed(2)}</td>
                             </tr>
-                            <tr className="font-bold text-lg bg-slate-100">
-                                <td className="p-2">{t('totalTTCLabel')}:</td>
-                                <td className="p-2">{totalTTC.toFixed(2)}</td>
+                            <tr className="bg-gray-200 font-bold text-lg">
+                                <td className="p-2">{t('totalTTC')}</td>
+                                <td className="p-2 text-right">{totalTTC.toFixed(2)}</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-            </section>
+            </div>
             
-            <footer className="mt-20 pt-4 border-t text-center text-xs text-slate-500">
-                <p>{t('invoiceFooter')}</p>
-                <p>{user.companyName} - {user.companyAddress}</p>
+            <footer className="text-center text-xs text-gray-500 border-t pt-4">
+                 <p>{currentUser?.companyAddress} - {t('phoneLabel')}: {currentUser?.companyPhone} - {t('companyICELabel')}: {currentUser?.companyICE}</p>
             </footer>
         </div>
     );
 });
-InvoiceTemplateComponent.displayName = 'InvoiceTemplateComponent';
 
 
-// --- INVOICE PAGE COMPONENT ---
+const InvoicePreviewModal: React.FC<{ invoice: InvoiceData, onClose: () => void }> = ({ invoice, onClose }) => {
+    const componentRef = useRef<HTMLDivElement>(null);
+    // FIX: The type definitions for this version of react-to-print are incorrect.
+    // 'content' is a valid option but is not in the type. Using a type cast to bypass the error.
+    const handlePrint = useReactToPrint({
+        content: () => componentRef.current,
+        documentTitle: `facture-${invoice.invoiceNumber}`,
+    } as any);
+    
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                 <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                    <h2 className="text-lg font-bold">Aperçu de la Facture</h2>
+                     <div className="flex items-center space-x-2">
+                        <button onClick={handlePrint} className="p-2 text-white bg-blue-600 rounded-full hover:bg-blue-700"><PrintIcon /></button>
+                        <button onClick={onClose} className="text-2xl font-bold text-slate-500 hover:text-slate-800">&times;</button>
+                    </div>
+                </div>
+                <div className="overflow-y-auto">
+                   <InvoiceDetailView invoice={invoice} ref={componentRef} />
+                </div>
+            </div>
+        </div>
+    );
+};
 
 interface InvoicePageProps {
   inventory: Item[];
   invoices: InvoiceData[];
-  addInvoice: (invoice: Omit<InvoiceData, 'id' | 'userId'>) => void;
+  addInvoice: (invoice: Omit<InvoiceData, 'id' | 'userId'>) => Promise<InvoiceData>;
   removeInvoice: (id: string) => void;
-  updateInvoice: (id: string, updatedData: Partial<Omit<InvoiceData, 'id' | 'userId'>>) => void;
-  currentUser: User;
-  navigateToInventory: () => void;
+  deductInventoryForInvoice: (invoice: InvoiceData) => void;
 }
 
-const InvoicePage: React.FC<InvoicePageProps> = ({
-  inventory,
-  invoices,
-  addInvoice,
-  removeInvoice,
-  currentUser,
-  navigateToInventory
-}) => {
+const InvoicePage: React.FC<InvoicePageProps> = ({ inventory, invoices, addInvoice, removeInvoice, deductInventoryForInvoice }) => {
   const { t } = useTranslation();
-  const [newInvoiceData, setNewInvoiceData] = useState({
-    invoiceNumber: '',
-    customerName: '',
-    invoiceDate: new Date().toISOString().split('T')[0],
-    targetTotal: ''
-  });
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [targetAmount, setTargetAmount] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [errors, setErrors] = useState({ invoiceNumber: '', customerName: '', targetAmount: '', invoiceDate: '' });
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceData | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
 
-  const componentToPrintRef = useRef<HTMLDivElement>(null);
-  // FIX: Cast the options object to `any` to bypass outdated type definitions in `react-to-print` which incorrectly omit the `content` property.
-  const handlePrint = useReactToPrint({
-    content: () => componentToPrintRef.current,
-    documentTitle: selectedInvoice ? `Invoice-${selectedInvoice.invoiceNumber}` : 'Invoice',
-  } as any);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setNewInvoiceData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleGenerateInvoice = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    
-    const target = parseFloat(newInvoiceData.targetTotal);
-    if (!newInvoiceData.invoiceNumber.trim() || !newInvoiceData.customerName.trim() || !newInvoiceData.invoiceDate || isNaN(target) || target <= 0) {
-      if (!newInvoiceData.invoiceNumber.trim()) {
-        setError(t('errorInvoiceNumberRequired'));
-      } else if (!newInvoiceData.customerName.trim()) {
-        setError(t('errorCustomerNameRequired'));
-      } else {
-        setError(t('errorInvalidAmount'));
-      }
-      return;
+    const newErrors = { invoiceNumber: '', customerName: '', targetAmount: '', invoiceDate: '' };
+    let isValid = true;
+    if(!invoiceNumber.trim()){ newErrors.invoiceNumber = t('errorInvoiceNumberRequired'); isValid = false; }
+    if (!customerName.trim()) { newErrors.customerName = t('errorCustomerNameRequired'); isValid = false; }
+    if (parseFloat(targetAmount) <= 0 || isNaN(parseFloat(targetAmount))) { newErrors.targetAmount = t('errorAmountPositive'); isValid = false; }
+    if (!invoiceDate) { newErrors.invoiceDate = t('errorDateRequired'); isValid = false; }
+    setErrors(newErrors);
+
+    if (isValid) {
+        setIsLoading(true);
+        const target = parseFloat(targetAmount);
+        const targetHT = target / 1.20; 
+
+        // Filter inventory by date
+        const availableInventory = inventory.filter(item => new Date(item.purchaseDate) <= new Date(invoiceDate));
+
+        if (availableInventory.length === 0) {
+            alert(t('errorNoItemsForDate'));
+            setIsLoading(false);
+            return;
+        }
+
+        const items = await generateInvoiceItems(availableInventory, targetHT, invoiceDate);
+
+        if (items) {
+             const newInvoiceData: Omit<InvoiceData, 'id' | 'userId'> = {
+                invoiceNumber,
+                customerName,
+                date: invoiceDate,
+                totalAmount: target,
+                items,
+            };
+            const savedInvoice = await addInvoice(newInvoiceData);
+            await deductInventoryForInvoice(savedInvoice);
+            
+            // Reset form
+            setInvoiceNumber('');
+            setCustomerName('');
+            setTargetAmount('');
+        } else {
+            alert(t('errorNoCombination'));
+        }
+        setIsLoading(false);
     }
-    
-    setIsGenerating(true);
-    try {
-      // Calculate HT amount from TTC
-      const targetHT = target / 1.20; // Assuming 20% TVA
-      const items = await generateInvoiceItems(inventory.filter(item => new Date(item.purchaseDate) <= new Date(newInvoiceData.invoiceDate)), targetHT, newInvoiceData.invoiceDate);
-      
-      if (!items || items.length === 0) {
-        setError(t('errorNoItemCombination'));
-        setIsGenerating(false);
-        return;
-      }
-      
-      const totalAmount = items.reduce((sum, item) => sum + item.price, 0) * 1.20; // Recalculate TTC from actual HT
-      
-      await addInvoice({
-        customerName: newInvoiceData.customerName,
-        invoiceDate: newInvoiceData.invoiceDate,
-        items,
-        totalAmount,
-        invoiceNumber: newInvoiceData.invoiceNumber,
-      });
-
-      setNewInvoiceData({ invoiceNumber: '', customerName: '', invoiceDate: new Date().toISOString().split('T')[0], targetTotal: '' });
-      
-    } catch (err) {
-      console.error("Error generating invoice:", err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      setError(`${t('errorGeneratingItems')}: ${errorMessage}`);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const filteredInvoices = useMemo(() => invoices.filter(invoice =>
-    invoice.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase())
-  ), [invoices, searchTerm]);
-
-  const sortedInvoices = useMemo(() => {
-    return [...filteredInvoices].sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime());
-  }, [filteredInvoices]);
-
-  const viewInvoice = (invoice: InvoiceData) => {
-    setSelectedInvoice(invoice);
   };
   
-  const printInvoice = (invoice: InvoiceData) => {
-    setSelectedInvoice(invoice);
-    setTimeout(() => {
-        handlePrint();
-    }, 100);
+  const handleRemoveInvoice = (invoiceId: string) => {
+    if (window.confirm(t('cancelInvoiceConfirmation'))) {
+        removeInvoice(invoiceId);
+    }
   };
 
-  const closeModal = () => {
-    setSelectedInvoice(null);
-  };
+  const sortedInvoices = useMemo(() => {
+    return [...invoices].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [invoices]);
 
   return (
     <div className="space-y-8">
-      {/* Form for creating new invoice */}
       <div className="p-6 bg-white rounded-lg shadow-sm">
-        <h2 className="text-xl font-bold mb-4 text-slate-700">{t('createInvoiceTitle')}</h2>
-        <form onSubmit={handleGenerateInvoice} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-            <div className="flex flex-col">
-                <label htmlFor="invoiceNumber" className="mb-1 text-sm font-medium text-slate-600">{t('invoiceNumberLabel')}</label>
-                <input type="text" id="invoiceNumber" name="invoiceNumber" value={newInvoiceData.invoiceNumber} onChange={handleInputChange} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
+        <h2 className="text-xl font-bold mb-4 text-slate-700">{t('createNewInvoice')}</h2>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end" noValidate>
+            <div>
+                <label className="block mb-1 text-sm font-medium text-slate-600">{t('invoiceNumberLabel')}</label>
+                <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} className={`w-full p-2 border ${errors.invoiceNumber ? 'border-red-500' : 'border-slate-300'} bg-slate-100 rounded-md`} />
+                {errors.invoiceNumber && <p className="text-red-500 text-xs mt-1">{errors.invoiceNumber}</p>}
             </div>
-            <div className="flex flex-col">
-                <label htmlFor="customerName" className="mb-1 text-sm font-medium text-slate-600">{t('customerNameLabel')}</label>
-                <input type="text" id="customerName" name="customerName" value={newInvoiceData.customerName} onChange={handleInputChange} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
+            <div>
+                <label className="block mb-1 text-sm font-medium text-slate-600">{t('customerNameLabel')}</label>
+                <input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className={`w-full p-2 border ${errors.customerName ? 'border-red-500' : 'border-slate-300'} bg-slate-100 rounded-md`} />
+                {errors.customerName && <p className="text-red-500 text-xs mt-1">{errors.customerName}</p>}
             </div>
-            <div className="flex flex-col">
-                <label htmlFor="invoiceDate" className="mb-1 text-sm font-medium text-slate-600">{t('invoiceDateLabel')}</label>
-                <input type="date" id="invoiceDate" name="invoiceDate" value={newInvoiceData.invoiceDate} onChange={handleInputChange} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
+            <div>
+                <label className="block mb-1 text-sm font-medium text-slate-600">{t('totalAmountTTC')}</label>
+                <input type="number" value={targetAmount} onChange={e => setTargetAmount(e.target.value)} placeholder="Ex: 1250.75" className={`w-full p-2 border ${errors.targetAmount ? 'border-red-500' : 'border-slate-300'} bg-slate-100 rounded-md`} />
+                {errors.targetAmount && <p className="text-red-500 text-xs mt-1">{errors.targetAmount}</p>}
             </div>
-            <div className="flex flex-col">
-                <label htmlFor="targetTotal" className="mb-1 text-sm font-medium text-slate-600">{t('targetTotalLabel')}</label>
-                <input type="number" id="targetTotal" name="targetTotal" value={newInvoiceData.targetTotal} onChange={handleInputChange} min="0" step="0.01" placeholder={t('amountPlaceholder')} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
+             <div>
+                <label className="block mb-1 text-sm font-medium text-slate-600">{t('invoiceDateLabel')}</label>
+                <input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} className={`w-full p-2 border ${errors.invoiceDate ? 'border-red-500' : 'border-slate-300'} bg-slate-100 rounded-md`} />
+                {errors.invoiceDate && <p className="text-red-500 text-xs mt-1">{errors.invoiceDate}</p>}
             </div>
-            <button type="submit" disabled={isGenerating} className="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 flex items-center justify-center disabled:bg-slate-400 disabled:cursor-wait">
-                <PlusIcon />
-                {isGenerating ? t('generatingButton') : t('generateItemsButton')}
+            <button type="submit" disabled={isLoading} className="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 disabled:bg-slate-400 transition-colors flex items-center justify-center">
+                {isLoading ? t('generatingInvoice') : t('generateInvoiceButton')}
             </button>
         </form>
-        {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
       </div>
 
-      {/* List of existing invoices */}
       <div className="p-6 bg-white rounded-lg shadow-sm">
-        <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-slate-700">{t('invoiceHistoryTitle')} ({sortedInvoices.length})</h2>
-            <input type="text" placeholder={t('searchPlaceholderInvoice')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="p-2 border border-slate-300 bg-slate-100 rounded-md w-1/3 focus:ring-2 focus:ring-blue-500" />
-        </div>
+        <h2 className="text-xl font-bold mb-4 text-slate-700">{t('invoiceHistory')} ({sortedInvoices.length})</h2>
         <div className="overflow-x-auto">
-            <table className="min-w-full bg-white">
-                <thead className="bg-slate-100">
-                  <tr>
-                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('invoiceNumberLabel')}</th>
-                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('customerNameLabel')}</th>
-                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderDate')}</th>
-                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('totalAmountLabel')}</th>
-                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderAction')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                    {sortedInvoices.length > 0 ? sortedInvoices.map(invoice => (
-                        <tr key={invoice.id} className="hover:bg-slate-50">
-                            <td className="py-2 px-4 border-b text-slate-900">{invoice.invoiceNumber}</td>
-                            <td className="py-2 px-4 border-b text-slate-900">{invoice.customerName}</td>
-                            <td className="py-2 px-4 border-b text-slate-900">{new Date(invoice.invoiceDate).toLocaleDateString()}</td>
-                            <td className="py-2 px-4 border-b text-slate-900">{invoice.totalAmount.toFixed(2)}</td>
-                            <td className="py-2 px-4 border-b">
-                                <div className="flex items-center justify-end space-x-2 space-x-reverse">
-                                    <button onClick={() => viewInvoice(invoice)} title={t('viewInvoice')} className="text-sky-600 hover:text-sky-800 p-1"><EyeIcon /></button>
-                                    <button onClick={() => printInvoice(invoice)} title={t('printInvoice')} className="text-indigo-600 hover:text-indigo-800 p-1"><PrintIcon /></button>
-                                    <button onClick={() => removeInvoice(invoice.id)} title={t('deleteInvoice')} className="text-red-500 hover:text-red-700 p-1"><TrashIcon /></button>
-                                </div>
-                            </td>
-                        </tr>
-                    )) : (
-                        <tr>
-                            <td colSpan={5} className="text-center py-4 text-slate-500">
-                                {searchTerm ? t('emptyInvoiceSearch') : t('emptyInvoices')}
-                            </td>
-                        </tr>
-                    )}
-                </tbody>
-            </table>
-        </div>
-        <div className="mt-6 text-center">
-            <button onClick={navigateToInventory} className="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 transition-colors">
-                {t('goToInventoryPageButton')}
-            </button>
+           <table className="min-w-full bg-white">
+             <thead className="bg-slate-100">
+               <tr>
+                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('invoiceNumberLabel')}</th>
+                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('customerNameLabel')}</th>
+                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('date')}</th>
+                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('totalAmount')}</th>
+                 <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('actions')}</th>
+               </tr>
+             </thead>
+             <tbody>
+                {sortedInvoices.map(invoice => (
+                    <tr key={invoice.id} className="hover:bg-slate-50">
+                        <td className="py-2 px-4 border-b">{invoice.invoiceNumber}</td>
+                        <td className="py-2 px-4 border-b">{invoice.customerName}</td>
+                        <td className="py-2 px-4 border-b">{invoice.date}</td>
+                        <td className="py-2 px-4 border-b">{invoice.totalAmount.toFixed(2)}</td>
+                        <td className="py-2 px-4 border-b">
+                            <div className="flex items-center justify-end space-x-2 space-x-reverse">
+                                <button onClick={() => setSelectedInvoice(invoice)} title={t('view')} className="text-blue-600 hover:text-blue-800 p-1"><EyeIcon /></button>
+                                <button onClick={() => handleRemoveInvoice(invoice.id)} title={t('cancelInvoice')} className="text-red-500 hover:text-red-700 p-1"><TrashIcon /></button>
+                            </div>
+                        </td>
+                    </tr>
+                ))}
+             </tbody>
+           </table>
         </div>
       </div>
-
-      {/* Invoice Modal for viewing */}
-      {selectedInvoice && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-start pt-10 z-50 overflow-y-auto">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl relative my-8">
-                <div className="p-4 border-b flex justify-between items-center">
-                    <h3 className="text-lg font-bold">{t('invoiceDetailTitle')} - {selectedInvoice.invoiceNumber}</h3>
-                    <button onClick={closeModal} className="text-slate-500 hover:text-slate-800 text-2xl">&times;</button>
-                </div>
-                <div className="p-6">
-                    <InvoiceTemplateComponent invoice={selectedInvoice} user={currentUser} />
-                </div>
-                <div className="p-4 border-t flex justify-end space-x-2">
-                    <button onClick={closeModal} className="bg-slate-200 text-slate-800 px-4 py-2 rounded-md hover:bg-slate-300">{t('closeButton')}</button>
-                    <button onClick={() => printInvoice(selectedInvoice)} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center">
-                      <PrintIcon/> <span className="mx-2">{t('printButton')}</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* Hidden component for printing */}
-      <div className="hidden">
-          <InvoiceTemplateComponent ref={componentToPrintRef} invoice={selectedInvoice} user={currentUser} />
-      </div>
+      {selectedInvoice && <InvoicePreviewModal invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />}
     </div>
   );
 };
