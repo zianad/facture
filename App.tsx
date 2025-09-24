@@ -132,16 +132,58 @@ function App() {
   // --- Invoice Management ---
   const addInvoice = useCallback(async (invoice: Omit<InvoiceData, 'id' | 'userId'>) => {
     if (!currentUser) return;
-    const newInvoice: InvoiceData = {
-      ...invoice,
-      id: crypto.randomUUID(),
-      userId: currentUser.id
-    };
-    await db.invoices.add(newInvoice);
+    try {
+        await db.transaction('rw', db.invoices, db.inventory, async () => {
+            const newInvoice: InvoiceData = {
+                ...invoice,
+                id: crypto.randomUUID(),
+                userId: currentUser.id
+            };
+            await db.invoices.add(newInvoice);
+
+            const itemCounts = invoice.items.reduce((acc, item) => {
+                acc[item.id] = (acc[item.id] || 0) + 1;
+                return acc;
+            }, {} as Record<string, number>);
+
+            for (const itemId in itemCounts) {
+                const currentItem = await db.inventory.get(itemId);
+                if (currentItem && currentItem.quantity >= itemCounts[itemId]) {
+                    await db.inventory.update(itemId, { quantity: currentItem.quantity - itemCounts[itemId] });
+                } else {
+                    throw new Error(`Insufficient stock for item ${itemId}`);
+                }
+            }
+        });
+    } catch (error) {
+        console.error("Failed to add invoice and deduct inventory:", error);
+        // Optionally, provide user feedback about the failure
+    }
   }, [currentUser]);
 
   const removeInvoice = useCallback(async (id: string) => {
-    await db.invoices.delete(id);
+     try {
+        await db.transaction('rw', db.invoices, db.inventory, async () => {
+            const invoiceToDelete = await db.invoices.get(id);
+            if (!invoiceToDelete) return;
+
+            const itemCounts = invoiceToDelete.items.reduce((acc, item) => {
+                acc[item.id] = (acc[item.id] || 0) + 1;
+                return acc;
+            }, {} as Record<string, number>);
+
+            const itemIds = Object.keys(itemCounts);
+            for (const itemId of itemIds) {
+                 await db.inventory.where({ id: itemId }).modify(item => {
+                    item.quantity += itemCounts[itemId];
+                });
+            }
+            
+            await db.invoices.delete(id);
+        });
+    } catch (error) {
+        console.error("Failed to remove invoice and restore inventory:", error);
+    }
   }, []);
   
   const updateInvoice = useCallback(async (id: string, updatedData: Partial<Omit<InvoiceData, 'id' | 'userId'>>) => {
