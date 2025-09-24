@@ -23,7 +23,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ navigateToAdmin }) => {
       return;
     }
     
-    const success = await login(password, false); // rememberMe is handled by AuthContext now
+    const success = await login(password);
     if (!success) {
       setError(t('loginFailedError'));
     }

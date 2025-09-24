@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import type { User } from '@/types';
-import { db } from '@/services/db';
+import type { User } from '../types';
+import { db } from '../services/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 
 interface AuthContextType {
@@ -8,7 +8,7 @@ interface AuthContextType {
   users: User[];
   login: (password: string) => Promise<boolean>;
   logout: () => void;
-  addUser: (username: string, password: string, companyName: string, companyAddress: string, companyPhone: string, companyICE: string, companySubtitle: string) => Promise<boolean>;
+  addUser: (userData: Omit<User, 'id'>) => Promise<boolean>;
   removeUser: (id: string) => Promise<void>;
   updateUser: (userId: string, data: Partial<Omit<User, 'id'>>) => Promise<{ success: boolean; message: string }>;
 }
@@ -54,14 +54,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('currentUserId');
   };
 
-  const addUser = async (username: string, password: string, companyName: string, companyAddress: string, companyPhone: string, companyICE: string, companySubtitle: string): Promise<boolean> => {
+  const addUser = async (userData: Omit<User, 'id'>): Promise<boolean> => {
     try {
-        const existingUser = await db.users.where({ username }).first();
+        const existingUser = await db.users.where({ username: userData.username }).first();
         if (existingUser) {
-            alert(`User ${username} already exists.`);
+            alert(`User ${userData.username} already exists.`);
             return false;
         }
-        const newUser: User = { id: `${Date.now()}`, username, password, companyName, companyAddress, companyPhone, companyICE, companySubtitle };
+        const newUser: User = { ...userData, id: `${Date.now()}` };
         await db.users.add(newUser);
         return true;
     } catch (error) {
