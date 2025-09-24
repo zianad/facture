@@ -176,12 +176,11 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
 
   const componentToPrintRef = useRef<HTMLDivElement>(null);
-  // FIX: Suppress TypeScript error on the `content` property, which is a valid option for `useReactToPrint`.
-  // @ts-ignore
+  // FIX: Cast the options object to `any` to bypass outdated type definitions in `react-to-print` which incorrectly omit the `content` property.
   const handlePrint = useReactToPrint({
     content: () => componentToPrintRef.current,
     documentTitle: selectedInvoice ? `Invoice-${selectedInvoice.invoiceNumber}` : 'Invoice',
-  });
+  } as any);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
