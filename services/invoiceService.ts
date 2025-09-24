@@ -18,7 +18,7 @@ export const generateInvoiceItems = (
 ): Promise<Item[] | null> => {
   return new Promise((resolve, reject) => {
     // Filter out items that cannot be part of a solution.
-    const availableItems = inventory.filter(item => item.quantity > 0 && item.price > 0);
+    const availableItems = inventory.filter(item => item.quantity > 0 && item.purchasePrice > 0);
     
     if (availableItems.length === 0 || targetTotal <= 0) {
       console.warn("Inventory is empty or target is zero. Cannot generate invoice items.");
