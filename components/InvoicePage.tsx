@@ -89,8 +89,8 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ invoice, comp
     };
 
     return (
-        <div id="invoice-modal" className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4 print:bg-white print:p-0 print:items-start">
-            <div id="invoice-modal-content" className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto print:shadow-none print:rounded-none print:max-h-full">
+        <div id="invoice-modal" className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4 print:static print:block print:bg-white print:p-0">
+            <div id="invoice-modal-content" className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto print:shadow-none print:rounded-none print:max-h-none print:overflow-visible">
                 <div className="flex justify-between items-start print:hidden">
                     <h2 className="text-2xl font-bold text-slate-800">{t('invoiceDetailTitle')}</h2>
                     <button onClick={onClose} className="text-slate-500 hover:text-slate-800"><CloseIcon /></button>
