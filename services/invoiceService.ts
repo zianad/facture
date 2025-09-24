@@ -16,7 +16,7 @@ export const generateInvoiceItems = (
   targetTotal: number,
   _invoiceDate: string
 ): Promise<Item[] | null> => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     // Filter out items that cannot be part of a solution.
     const availableItems = inventory.filter(item => item.quantity > 0 && item.purchasePrice > 0);
     

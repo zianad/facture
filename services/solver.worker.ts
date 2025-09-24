@@ -1,17 +1,24 @@
 // solver.worker.ts
+import type { Item } from '../types';
+
+interface ZeroOneItem {
+    originalId: string;
+    priceInCents: number;
+    portion: number;
+}
 
 // A highly efficient Dynamic Programming solution to find the combination of items that sums closest to the target amount.
 // This approach is much faster than backtracking, especially when item quantities are large.
-const findCombinationWithDP = (items, target) => {
+const findCombinationWithDP = (items: Item[], target: number): Item[] | null => {
     const targetInCents = Math.round(target * 100);
     if (targetInCents <= 0 || items.length === 0) return null;
 
-    const itemMap = new Map();
+    const itemMap = new Map<string, Item>();
     let maxItemPriceInCents = 0;
 
-    items.forEach(item => {
+    items.forEach((item: Item) => {
         if(!itemMap.has(item.id)) itemMap.set(item.id, item);
-        const priceInCents = Math.round(item.price * 100);
+        const priceInCents = Math.round(item.purchasePrice * 100);
         if (priceInCents > maxItemPriceInCents) {
             maxItemPriceInCents = priceInCents;
         }
@@ -28,15 +35,15 @@ const findCombinationWithDP = (items, target) => {
     // This is a standard trick to handle quantities efficiently in DP without a performance hit.
     // An item with quantity 13 is broken into items representing quantities 1, 2, 4, and 6.
     // This allows the DP to form any quantity sum from 1 to 13.
-    const zeroOneItems = [];
-    items.forEach(item => {
+    const zeroOneItems: ZeroOneItem[] = [];
+    items.forEach((item: Item) => {
         let quantity = item.quantity;
         let powerOfTwo = 1;
         while (quantity > 0) {
             const currentPortion = Math.min(quantity, powerOfTwo);
             zeroOneItems.push({
                 originalId: item.id,
-                priceInCents: Math.round(item.price * 100 * currentPortion),
+                priceInCents: Math.round(item.purchasePrice * 100 * currentPortion),
                 portion: currentPortion
             });
             quantity -= currentPortion;
@@ -48,9 +55,9 @@ const findCombinationWithDP = (items, target) => {
 
     // 2. Solve the 0/1 Knapsack problem using Dynamic Programming.
     // dp[s] = true if sum 's' is reachable.
-    const dp = new Array(searchUpperBound + 1).fill(false);
+    const dp: boolean[] = new Array(searchUpperBound + 1).fill(false);
     // path[s] stores the item and previous sum to allow for reconstructing the solution.
-    const path = new Array(searchUpperBound + 1).fill(null); 
+    const path: { item: ZeroOneItem, prevSum: number }[] = new Array(searchUpperBound + 1).fill(null); 
     dp[0] = true;
 
     for (const zItem of zeroOneItems) {
@@ -85,7 +92,7 @@ const findCombinationWithDP = (items, target) => {
     }
 
     // 4. Reconstruct the path to determine which items and quantities were used.
-    const itemCounts = new Map();
+    const itemCounts = new Map<string, number>();
     let currentSum = bestSum;
     while (currentSum > 0 && path[currentSum]) {
         const trace = path[currentSum];
@@ -95,7 +102,7 @@ const findCombinationWithDP = (items, target) => {
     }
 
     // 5. Build the final array of original item objects based on the counts.
-    const resultItems = [];
+    const resultItems: Item[] = [];
     for (const [id, count] of itemCounts.entries()) {
         const originalItem = itemMap.get(id);
         if (originalItem) {
@@ -110,7 +117,7 @@ const findCombinationWithDP = (items, target) => {
 
 
 // Listen for messages from the main thread.
-self.onmessage = (event) => {
+self.onmessage = (event: MessageEvent<{ items: Item[], target: number }>) => {
   const { items, target } = event.data;
   const result = findCombinationWithDP(items, target);
   // Send the result back to the main thread.

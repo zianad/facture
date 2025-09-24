@@ -1,5 +1,4 @@
-
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from './context/AuthContext';
 import { db } from './services/db';
