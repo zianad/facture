@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from './context/AuthContext';
@@ -8,7 +9,8 @@ import type { Item, InvoiceData } from './types';
 import LoginPage from './components/LoginPage';
 import AdminPage from './components/AdminPage';
 import InventoryPage from './components/InventoryPage';
-import InvoicePage from './components/InvoicePage';
+// FIX: Add .tsx extension for explicit module resolution.
+import InvoicePage from './components/InvoicePage.tsx';
 import ProfilePage from './components/ProfilePage';
 
 // Sidebar component is included here to avoid creating new files.
