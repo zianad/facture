@@ -2,89 +2,21 @@
 import React, { useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from './context/AuthContext';
-import { useTranslation } from './context/LanguageContext';
 import { db } from './services/db';
 import type { Item, InvoiceData } from './types';
 
 import LoginPage from './components/LoginPage';
 import AdminPage from './components/AdminPage';
+import Header from './components/Header';
 import InventoryPage from './components/InventoryPage';
-// FIX: Add .tsx extension for explicit module resolution.
-import InvoicePage from './components/InvoicePage.tsx';
+import InvoicePage from './components/InvoicePage';
 import ProfilePage from './components/ProfilePage';
 
-// Sidebar component is included here to avoid creating new files.
-const Sidebar: React.FC<{
-  currentPage: string;
-  setCurrentPage: (page: 'inventory' | 'invoice' | 'profile') => void;
-  logout: () => void;
-  username: string;
-}> = ({ currentPage, setCurrentPage, logout, username }) => {
-  const { t, language, changeLanguage } = useTranslation();
-
-  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    changeLanguage(e.target.value as 'ar' | 'fr');
-  };
-  
-  const navItems = [
-    { id: 'inventory', label: t('inventoryPageTitle') },
-    { id: 'invoice', label: t('invoicePageTitle') },
-    { id: 'profile', label: t('profilePageTitle') },
-  ];
-
-  return (
-    <div className="w-64 h-screen bg-slate-800 text-white flex flex-col fixed">
-        <div className="p-4 border-b border-slate-700">
-            <h1 className="text-2xl font-bold">{t('appTitle')}</h1>
-            <p className="text-sm text-slate-400">{t('welcomeMessage', { username })}</p>
-        </div>
-        <nav className="flex-1 p-4 space-y-2">
-            {navItems.map(item => (
-                <button
-                    key={item.id}
-                    onClick={() => setCurrentPage(item.id as 'inventory' | 'invoice' | 'profile')}
-                    className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
-                        currentPage === item.id
-                            ? 'bg-blue-600'
-                            : 'hover:bg-slate-700'
-                    }`}
-                >
-                    {item.label}
-                </button>
-            ))}
-        </nav>
-        <div className="p-4 border-t border-slate-700 space-y-4">
-            <div>
-              <label htmlFor="language-select" className="text-sm text-slate-400 block mb-1">{t('languageLabel')}</label>
-              <select
-                id="language-select"
-                value={language}
-                onChange={handleLanguageChange}
-                className="w-full p-2 rounded-md bg-slate-700 text-white border border-slate-600 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="fr">Français</option>
-                <option value="ar">العربية</option>
-              </select>
-            </div>
-            <button
-                onClick={logout}
-                className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md"
-            >
-                {t('logoutButton')}
-            </button>
-        </div>
-    </div>
-  );
-};
-
-
-type Page = 'inventory' | 'invoice' | 'profile' | 'admin' | 'login';
+type Page = 'inventory' | 'invoices' | 'profile' | 'admin' | 'login';
 
 function App() {
   const { currentUser, logout } = useAuth();
-  // We use a separate 'view' state to manage top-level views like login/admin vs the main app's internal page.
-  const [view, setView] = useState<Page>(currentUser ? 'inventory' : 'login');
-  const [currentPage, setCurrentPage] = useState<'inventory' | 'invoice' | 'profile'>('inventory');
+  const [view, setView] = useState<Page>(currentUser ? 'invoices' : 'login');
   
   const inventory = useLiveQuery(() => 
     currentUser ? db.inventory.where('userId').equals(currentUser.id).toArray() : [],
@@ -96,106 +28,58 @@ function App() {
     [currentUser]
   ) || [];
   
-  const handleSetCurrentPage = (page: 'inventory' | 'invoice' | 'profile') => {
-    setCurrentPage(page);
-    setView(page);
-  };
-  
-  // --- Inventory Management ---
-  const addItem = useCallback(async (item: Omit<Item, 'id' | 'userId'>) => {
+  const addItems = useCallback(async (items: Omit<Item, 'id' | 'userId'>[]) => {
     if (!currentUser) return;
-    const newItem: Item = {
-      ...item,
-      id: crypto.randomUUID(),
-      userId: currentUser.id
-    };
-    await db.inventory.add(newItem);
-  }, [currentUser]);
-
-  const addMultipleItems = useCallback(async (items: Omit<Item, 'id' | 'userId'>[]) => {
-    if (!currentUser) return;
-    const newItems: Item[] = items.map(item => ({
-      ...item,
-      id: crypto.randomUUID(),
-      userId: currentUser.id
-    }));
-    await db.inventory.bulkAdd(newItems);
+    const itemsToAdd = items.map(item => ({ ...item, id: crypto.randomUUID(), userId: currentUser.id }));
+    await db.inventory.bulkAdd(itemsToAdd);
   }, [currentUser]);
 
   const removeItem = useCallback(async (id: string) => {
     await db.inventory.delete(id);
   }, []);
 
-  const updateItem = useCallback(async (id: string, updatedData: Partial<Omit<Item, 'id' | 'userId'>>) => {
+  const updateItem = useCallback(async (id: string, updatedData: Partial<Omit<Item, 'id'|'userId'>>) => {
     await db.inventory.update(id, updatedData);
   }, []);
-
-
-  // --- Invoice Management ---
-  const addInvoice = useCallback(async (invoice: Omit<InvoiceData, 'id' | 'userId'>) => {
-    if (!currentUser) return;
-    try {
-        await db.transaction('rw', db.invoices, db.inventory, async () => {
-            const newInvoice: InvoiceData = {
-                ...invoice,
-                id: crypto.randomUUID(),
-                userId: currentUser.id
-            };
-            await db.invoices.add(newInvoice);
-
-            const itemCounts = invoice.items.reduce((acc, item) => {
-                acc[item.id] = (acc[item.id] || 0) + 1;
-                return acc;
-            }, {} as Record<string, number>);
-
-            for (const itemId in itemCounts) {
-                const quantityToDeduct = itemCounts[itemId];
-                const updatedCount = await db.inventory.where({ id: itemId }).modify(item => {
-                    if (item.quantity < quantityToDeduct) {
-                        throw new Error(`Insufficient stock for item with ID ${itemId}`);
-                    }
-                    item.quantity -= quantityToDeduct;
-                });
-
-                if (updatedCount === 0) {
-                    throw new Error(`Item with ID ${itemId} not found during invoice creation.`);
-                }
-            }
-        });
-    } catch (error) {
-        console.error("Failed to add invoice and deduct inventory:", error);
-        // Optionally, provide user feedback about the failure
+  
+  const addInvoice = useCallback(async (invoice: Omit<InvoiceData, 'id' | 'userId'>): Promise<InvoiceData> => {
+    if (!currentUser) {
+      // This was causing the type error. A non-returning path in an async function
+      // makes the return type a union with `void`. Throwing an error ensures
+      // all successful paths return an InvoiceData.
+      throw new Error("Current user is not set, cannot add invoice.");
     }
+    const newInvoice: InvoiceData = { ...invoice, id: crypto.randomUUID(), userId: currentUser.id };
+    await db.invoices.add(newInvoice);
+    return newInvoice;
   }, [currentUser]);
 
-  const removeInvoice = useCallback(async (id: string) => {
-     try {
-        await db.transaction('rw', db.invoices, db.inventory, async () => {
-            const invoiceToDelete = await db.invoices.get(id);
-            if (!invoiceToDelete) return;
-
-            const itemCounts = invoiceToDelete.items.reduce((acc, item) => {
-                acc[item.id] = (acc[item.id] || 0) + 1;
-                return acc;
-            }, {} as Record<string, number>);
-
-            const itemIds = Object.keys(itemCounts);
-            for (const itemId of itemIds) {
-                 await db.inventory.where({ id: itemId }).modify(item => {
-                    item.quantity += itemCounts[itemId];
-                });
-            }
-            
-            await db.invoices.delete(id);
+  const removeInvoice = useCallback(async (invoiceId: string) => {
+    const invoiceToDelete = await db.invoices.get(invoiceId);
+    if (!invoiceToDelete) return;
+    
+    // Restore inventory quantities
+    const updates = invoiceToDelete.items.map(invoiceItem => {
+        return db.inventory.where({ ref: invoiceItem.ref, userId: currentUser?.id }).modify(item => {
+            item.quantity += 1; // Assuming each item in invoice has quantity of 1
         });
-    } catch (error) {
-        console.error("Failed to remove invoice and restore inventory:", error);
-    }
-  }, []);
+    });
+
+    await Promise.all(updates);
+    await db.invoices.delete(invoiceId);
+  }, [currentUser]);
   
-  const updateInvoice = useCallback(async (id: string, updatedData: Partial<Omit<InvoiceData, 'id' | 'userId'>>) => {
-      await db.invoices.update(id, updatedData);
-  }, []);
+  const deductInventoryForInvoice = useCallback(async (invoice: InvoiceData) => {
+      const itemRefs = invoice.items.map(item => item.ref);
+      const uniqueRefs = [...new Set(itemRefs)];
+      
+      for(const ref of uniqueRefs){
+          const quantityToDeduct = invoice.items.filter(item => item.ref === ref).length;
+          await db.inventory.where({ ref, userId: currentUser?.id }).modify(item => {
+              item.quantity -= quantityToDeduct;
+          });
+      }
+  }, [currentUser]);
 
   if (!currentUser) {
       if (view === 'admin') {
@@ -204,56 +88,53 @@ function App() {
       return <LoginPage navigateToAdmin={() => setView('admin')} />;
   }
 
-
   const renderContent = () => {
-    switch (currentPage) {
+    switch (view) {
       case 'inventory':
         return <InventoryPage
           inventory={inventory}
-          addItem={addItem}
-          addMultipleItems={addMultipleItems}
+          addItems={addItems}
           removeItem={removeItem}
           updateItem={updateItem}
-          navigateToInvoice={() => handleSetCurrentPage('invoice')}
         />;
-      case 'invoice':
-        return <InvoicePage 
+      case 'invoices':
+        return <InvoicePage
           inventory={inventory}
           invoices={invoices}
           addInvoice={addInvoice}
           removeInvoice={removeInvoice}
-          updateInvoice={updateInvoice}
-          currentUser={currentUser}
-          navigateToInventory={() => handleSetCurrentPage('inventory')}
+          deductInventoryForInvoice={deductInventoryForInvoice}
         />;
       case 'profile':
         return <ProfilePage />;
       default:
-        return <InventoryPage
-          inventory={inventory}
-          addItem={addItem}
-          addMultipleItems={addMultipleItems}
-          removeItem={removeItem}
-          updateItem={updateItem}
-          navigateToInvoice={() => handleSetCurrentPage('invoice')}
+        return <InvoicePage 
+            inventory={inventory}
+            invoices={invoices}
+            addInvoice={addInvoice}
+            removeInvoice={removeInvoice}
+            deductInventoryForInvoice={deductInventoryForInvoice}
         />;
     }
   };
 
   return (
-    <div className="flex bg-slate-100 min-h-screen">
-      <Sidebar 
-        currentPage={currentPage} 
-        setCurrentPage={handleSetCurrentPage}
+    <div className="bg-slate-100 min-h-screen">
+      <Header 
+        currentPage={view} 
+        setCurrentPage={setView}
         logout={() => {
           logout();
           setView('login');
         }} 
         username={currentUser.username}
       />
-      <main className="flex-1 p-6" style={{ marginLeft: '16rem' }}> {/* ml-64 equivalent */}
+      <main className="p-6">
         {renderContent()}
       </main>
+      <footer className="text-center p-4 text-xs text-slate-500">
+         Smart Invoice Generator © 2024
+      </footer>
     </div>
   );
 }
