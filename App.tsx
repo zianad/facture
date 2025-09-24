@@ -28,7 +28,7 @@ function App() {
     [currentUser]
   ) || [];
   
-  const addItems = useCallback(async (items: Omit<Item, 'id' | 'userId'>[]) => {
+  const addItem = useCallback(async (items: Omit<Item, 'id' | 'userId'>[]) => {
     if (!currentUser) return;
     const itemsToAdd = items.map(item => ({ ...item, id: crypto.randomUUID(), userId: currentUser.id }));
     await db.inventory.bulkAdd(itemsToAdd);
@@ -93,7 +93,7 @@ function App() {
       case 'inventory':
         return <InventoryPage
           inventory={inventory}
-          addItems={addItems}
+          addItem={addItem}
           removeItem={removeItem}
           updateItem={updateItem}
         />;
