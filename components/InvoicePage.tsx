@@ -166,6 +166,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
 }) => {
   const { t } = useTranslation();
   const [newInvoiceData, setNewInvoiceData] = useState({
+    invoiceNumber: '',
     customerName: '',
     invoiceDate: new Date().toISOString().split('T')[0],
     targetTotal: ''
@@ -192,14 +193,22 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
     setError('');
     
     const target = parseFloat(newInvoiceData.targetTotal);
-    if (!newInvoiceData.customerName.trim() || !newInvoiceData.invoiceDate || isNaN(target) || target <= 0) {
-      setError(t('errorInvalidInvoiceData'));
+    if (!newInvoiceData.invoiceNumber.trim() || !newInvoiceData.customerName.trim() || !newInvoiceData.invoiceDate || isNaN(target) || target <= 0) {
+      if (!newInvoiceData.invoiceNumber.trim()) {
+        setError(t('errorInvoiceNumberRequired'));
+      } else if (!newInvoiceData.customerName.trim()) {
+        setError(t('errorCustomerNameRequired'));
+      } else {
+        setError(t('errorInvalidAmount'));
+      }
       return;
     }
     
     setIsGenerating(true);
     try {
-      const items = await generateInvoiceItems(inventory, target, newInvoiceData.invoiceDate);
+      // Calculate HT amount from TTC
+      const targetHT = target / 1.20; // Assuming 20% TVA
+      const items = await generateInvoiceItems(inventory.filter(item => new Date(item.purchaseDate) <= new Date(newInvoiceData.invoiceDate)), targetHT, newInvoiceData.invoiceDate);
       
       if (!items || items.length === 0) {
         setError(t('errorNoItemCombination'));
@@ -207,23 +216,22 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
         return;
       }
       
-      const totalAmount = items.reduce((sum, item) => sum + item.price, 0);
-      const invoiceNumber = `INV-${String(Date.now()).slice(-6)}`;
+      const totalAmount = items.reduce((sum, item) => sum + item.price, 0) * 1.20; // Recalculate TTC from actual HT
       
       await addInvoice({
         customerName: newInvoiceData.customerName,
         invoiceDate: newInvoiceData.invoiceDate,
         items,
         totalAmount,
-        invoiceNumber,
+        invoiceNumber: newInvoiceData.invoiceNumber,
       });
 
-      setNewInvoiceData({ customerName: '', invoiceDate: new Date().toISOString().split('T')[0], targetTotal: '' });
+      setNewInvoiceData({ invoiceNumber: '', customerName: '', invoiceDate: new Date().toISOString().split('T')[0], targetTotal: '' });
       
     } catch (err) {
       console.error("Error generating invoice:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      setError(`${t('errorGeneratingInvoice')}: ${errorMessage}`);
+      setError(`${t('errorGeneratingItems')}: ${errorMessage}`);
     } finally {
       setIsGenerating(false);
     }
@@ -258,7 +266,11 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
       {/* Form for creating new invoice */}
       <div className="p-6 bg-white rounded-lg shadow-sm">
         <h2 className="text-xl font-bold mb-4 text-slate-700">{t('createInvoiceTitle')}</h2>
-        <form onSubmit={handleGenerateInvoice} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <form onSubmit={handleGenerateInvoice} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+            <div className="flex flex-col">
+                <label htmlFor="invoiceNumber" className="mb-1 text-sm font-medium text-slate-600">{t('invoiceNumberLabel')}</label>
+                <input type="text" id="invoiceNumber" name="invoiceNumber" value={newInvoiceData.invoiceNumber} onChange={handleInputChange} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
+            </div>
             <div className="flex flex-col">
                 <label htmlFor="customerName" className="mb-1 text-sm font-medium text-slate-600">{t('customerNameLabel')}</label>
                 <input type="text" id="customerName" name="customerName" value={newInvoiceData.customerName} onChange={handleInputChange} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
@@ -268,12 +280,12 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
                 <input type="date" id="invoiceDate" name="invoiceDate" value={newInvoiceData.invoiceDate} onChange={handleInputChange} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
             </div>
             <div className="flex flex-col">
-                <label htmlFor="targetTotal" className="mb-1 text-sm font-medium text-slate-600">{t('invoiceTargetTotalLabel')}</label>
-                <input type="number" id="targetTotal" name="targetTotal" value={newInvoiceData.targetTotal} onChange={handleInputChange} min="0" step="0.01" placeholder={t('invoiceTargetTotalPlaceholder')} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
+                <label htmlFor="targetTotal" className="mb-1 text-sm font-medium text-slate-600">{t('targetTotalLabel')}</label>
+                <input type="number" id="targetTotal" name="targetTotal" value={newInvoiceData.targetTotal} onChange={handleInputChange} min="0" step="0.01" placeholder={t('amountPlaceholder')} className="p-2 border border-slate-300 bg-slate-100 rounded-md focus:ring-2 focus:ring-blue-500" />
             </div>
             <button type="submit" disabled={isGenerating} className="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 flex items-center justify-center disabled:bg-slate-400 disabled:cursor-wait">
                 <PlusIcon />
-                {isGenerating ? t('generatingInvoiceButton') : t('generateInvoiceButton')}
+                {isGenerating ? t('generatingButton') : t('generateItemsButton')}
             </button>
         </form>
         {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
@@ -282,17 +294,17 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
       {/* List of existing invoices */}
       <div className="p-6 bg-white rounded-lg shadow-sm">
         <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-slate-700">{t('existingInvoicesTitle')} ({sortedInvoices.length})</h2>
-            <input type="text" placeholder={t('searchInvoicePlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="p-2 border border-slate-300 bg-slate-100 rounded-md w-1/3 focus:ring-2 focus:ring-blue-500" />
+            <h2 className="text-xl font-bold text-slate-700">{t('invoiceHistoryTitle')} ({sortedInvoices.length})</h2>
+            <input type="text" placeholder={t('searchPlaceholderInvoice')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="p-2 border border-slate-300 bg-slate-100 rounded-md w-1/3 focus:ring-2 focus:ring-blue-500" />
         </div>
         <div className="overflow-x-auto">
             <table className="min-w-full bg-white">
                 <thead className="bg-slate-100">
                   <tr>
-                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('invoiceNumberHeader')}</th>
-                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('customerNameHeader')}</th>
-                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('dateHeader')}</th>
-                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('totalAmountHeader')}</th>
+                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('invoiceNumberLabel')}</th>
+                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('customerNameLabel')}</th>
+                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderDate')}</th>
+                    <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('totalAmountLabel')}</th>
                     <th className="py-2 px-4 border-b text-right font-semibold text-slate-600">{t('tableHeaderAction')}</th>
                   </tr>
                 </thead>
