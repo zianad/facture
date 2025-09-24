@@ -1,16 +1,16 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import type { User } from '../types';
-import { db } from '../services/db';
+import type { User } from '@/types';
+import { db } from '@/services/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 
 interface AuthContextType {
   currentUser: User | null;
   users: User[];
-  login: (password: string, rememberMe: boolean) => Promise<boolean>;
+  login: (password: string) => Promise<boolean>;
   logout: () => void;
-  addUser: (username: string, password: string, companyName: string, companyAddress: string, companyICE: string, companySubtitle: string) => Promise<boolean>;
+  addUser: (username: string, password: string, companyName: string, companyAddress: string, companyPhone: string, companyICE: string, companySubtitle: string) => Promise<boolean>;
   removeUser: (id: string) => Promise<void>;
-  updateUser: (userId: string, data: { username?: string; password?: string; companyName?: string; companyAddress?: string; companyICE?: string; companySubtitle?: string; }) => Promise<{ success: boolean; message: string }>;
+  updateUser: (userId: string, data: Partial<Omit<User, 'id'>>) => Promise<{ success: boolean; message: string }>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,13 +39,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
 
-  const login = async (password: string, rememberMe: boolean): Promise<boolean> => {
+  const login = async (password: string): Promise<boolean> => {
     const user = await db.users.where({ password }).first();
     if (user) {
       setCurrentUser(user);
       localStorage.setItem('currentUserId', user.id);
-      // The rememberMe functionality is now simplified; logging in implies remembering until logout.
-      // Specific "remember me" checkbox logic could be added here if needed to persist across browser closes.
       return true;
     }
     return false;
@@ -56,14 +54,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('currentUserId');
   };
 
-  const addUser = async (username: string, password: string, companyName: string, companyAddress: string, companyICE: string, companySubtitle: string): Promise<boolean> => {
+  const addUser = async (username: string, password: string, companyName: string, companyAddress: string, companyPhone: string, companyICE: string, companySubtitle: string): Promise<boolean> => {
     try {
         const existingUser = await db.users.where({ username }).first();
         if (existingUser) {
             alert(`User ${username} already exists.`);
             return false;
         }
-        const newUser: User = { id: `${Date.now()}`, username, password, companyName, companyAddress, companyICE, companySubtitle };
+        const newUser: User = { id: `${Date.now()}`, username, password, companyName, companyAddress, companyPhone, companyICE, companySubtitle };
         await db.users.add(newUser);
         return true;
     } catch (error) {
@@ -80,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await db.users.delete(id);
   };
 
-  const updateUser = async (userId: string, data: { username?: string; password?: string; companyName?: string; companyAddress?: string; companyICE?: string; companySubtitle?: string; }): Promise<{ success: boolean; message: string }> => {
+  const updateUser = async (userId: string, data: Partial<Omit<User, 'id'>>): Promise<{ success: boolean; message: string }> => {
      try {
         const userToUpdate = await db.users.get(userId);
         if (!userToUpdate) {
@@ -108,7 +106,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
   
-  // Render a loading state or nothing until session is checked
   if (isLoading) {
     return null; 
   }
