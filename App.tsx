@@ -1,15 +1,15 @@
 import { useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useAuth } from './context/AuthContext.tsx';
-import { db } from './services/db.ts';
-import type { Item, InvoiceData } from './types.ts';
+import { useAuth } from './context/AuthContext';
+import { db } from './services/db';
+import type { Item, InvoiceData } from './types';
 
-import LoginPage from './components/LoginPage.tsx';
-import AdminPage from './components/AdminPage.tsx';
-import Header from './components/Header.tsx';
-import InventoryPage from './components/InventoryPage.tsx';
-import InvoicePage from './components/InvoicePage.tsx';
-import ProfilePage from './components/ProfilePage.tsx';
+import LoginPage from './components/LoginPage';
+import AdminPage from './components/AdminPage';
+import Header from './components/Header';
+import InventoryPage from './components/InventoryPage';
+import InvoicePage from './components/InvoicePage';
+import ProfilePage from './components/ProfilePage';
 
 type Page = 'inventory' | 'invoices' | 'profile' | 'admin' | 'login';
 
