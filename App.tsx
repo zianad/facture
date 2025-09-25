@@ -4,12 +4,12 @@ import { useAuth } from './context/AuthContext';
 import { db } from './services/db';
 import type { Item, InvoiceData } from './types';
 
-import LoginPage from './Components/LoginPage';
-import AdminPage from './Components/AdminPage';
-import Header from './Components/Header';
-import InventoryPage from './Components/InventoryPage';
-import InvoicePage from './Components/InvoicePage';
-import ProfilePage from './Components/ProfilePage';
+import LoginPage from './components/LoginPage';
+import AdminPage from './components/AdminPage';
+import Header from './components/Header';
+import InventoryPage from './components/InventoryPage';
+import InvoicePage from './components/InvoicePage';
+import ProfilePage from './components/ProfilePage';
 
 type Page = 'inventory' | 'invoices' | 'profile' | 'admin' | 'login';
 
