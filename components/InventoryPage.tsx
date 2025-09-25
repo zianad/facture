@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import type { Item } from '../types';
@@ -18,6 +17,7 @@ interface InventoryPageProps {
   addItem: (items: Omit<Item, 'id' | 'userId'>[]) => void;
   removeItem: (id: string) => void;
   updateItem: (id: string, updatedData: Partial<Omit<Item, 'id'|'userId'>>) => void;
+  navigateToApp?: () => void; // Defensive prop to fix build error
 }
 
 const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, removeItem, updateItem }) => {
@@ -252,27 +252,27 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ inventory, addItem, remov
                             <td className="py-2 px-4 border-b"><input type="number" name="quantity" value={editFormData.quantity} onChange={handleEditFormChange} className="w-full p-1 border border-slate-300 rounded-md" /></td>
                             <td className="py-2 px-4 border-b"><input type="date" name="purchaseDate" value={editFormData.purchaseDate} onChange={handleEditFormChange} className="w-full p-1 border border-slate-300 rounded-md" /></td>
                             <td className="py-2 px-4 border-b">
-                                <div className="flex items-center space-x-2 space-x-reverse">
-                                    <button onClick={() => handleSaveClick(item.id)} title={t('save')} className="text-green-600 hover:text-green-800 p-1"><SaveIcon /></button>
-                                    <button onClick={handleCancelClick} title={t('cancel')} className="text-slate-500 hover:text-slate-700 p-1"><CancelIcon /></button>
+                                <div className="flex items-center justify-end space-x-2">
+                                    <button onClick={() => handleSaveClick(item.id)} className="p-1 text-green-600 hover:text-green-800"><SaveIcon /></button>
+                                    <button onClick={handleCancelClick} className="p-1 text-slate-600 hover:text-slate-800"><CancelIcon /></button>
                                 </div>
                             </td>
                         </>
-                    ) : (
+                   ) : (
                         <>
-                            <td className="py-2 px-4 border-b text-slate-900">{item.ref}</td>
-                            <td className="py-2 px-4 border-b text-slate-900">{item.name}</td>
-                            <td className="py-2 px-4 border-b text-slate-900">{item.purchasePrice.toFixed(2)}</td>
-                            <td className="py-2 px-4 border-b text-slate-900">{item.quantity}</td>
-                            <td className="py-2 px-4 border-b text-slate-900">{item.purchaseDate}</td>
+                            <td className="py-2 px-4 border-b">{item.ref}</td>
+                            <td className="py-2 px-4 border-b">{item.name}</td>
+                            <td className="py-2 px-4 border-b text-right">{item.purchasePrice.toFixed(2)}</td>
+                            <td className="py-2 px-4 border-b text-right">{item.quantity}</td>
+                            <td className="py-2 px-4 border-b">{item.purchaseDate}</td>
                             <td className="py-2 px-4 border-b">
-                                <div className="flex items-center space-x-2 space-x-reverse">
-                                    <button onClick={() => handleEditClick(item)} title={t('edit')} className="text-blue-600 hover:text-blue-800 p-1"><EditIcon /></button>
-                                    <button onClick={() => removeItem(item.id)} title={t('delete')} className="text-red-500 hover:text-red-700 p-1"><TrashIcon /></button>
+                                <div className="flex items-center justify-end space-x-2">
+                                    <button onClick={() => handleEditClick(item)} className="p-1 text-blue-600 hover:text-blue-800"><EditIcon /></button>
+                                    <button onClick={() => removeItem(item.id)} className="p-1 text-red-500 hover:text-red-700"><TrashIcon /></button>
                                 </div>
                             </td>
                         </>
-                    )}
+                   )}
                 </tr>
               )) : (
                 <tr>
