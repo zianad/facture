@@ -1,5 +1,5 @@
-import { db } from './db';
-import { InvoiceData } from '../types';
+import { db } from '@/services/db';
+import { InvoiceData } from '@/types';
 
 export const invoiceService = {
   getAllInvoices: async (userId: string): Promise<InvoiceData[]> => {
