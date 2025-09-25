@@ -1,20 +1,17 @@
-// FIX: Combined the Dexie and Table imports into a single statement. This can resolve
-// module resolution issues in some bundlers/TypeScript configurations, ensuring that
-// the correct type definition for the Dexie class (including the 'version' method) is loaded.
-import Dexie, { type Table } from 'dexie';
-import type { User, Item, InvoiceData } from '../types';
+import Dexie, { Table } from 'dexie';
+import { Item, InvoiceData, User } from '../types';
 
 export class AppDatabase extends Dexie {
-  users!: Table<User>;
-  inventory!: Table<Item>;
-  invoices!: Table<InvoiceData>;
+  items!: Table<Item, string>;
+  invoices!: Table<InvoiceData, string>;
+  users!: Table<User, string>;
 
   constructor() {
-    super('invoiceAppDB');
+    super('myDatabase');
     this.version(1).stores({
-      users: 'id, &username, password', // Primary key: id, Unique index on username, Index on password
-      inventory: 'id, userId', // Primary key: id, Index on userId
-      invoices: 'id, userId', // Primary key: id, Index on userId
+      items: '++id, ref, name, category, userId',
+      invoices: '++id, invoiceNumber, customerName, date, userId',
+      users: '++id, username',
     });
   }
 }
