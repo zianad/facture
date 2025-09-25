@@ -1,13 +1,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from '@/context/AuthContext';
-import { LanguageProvider } from '@/context/LanguageContext';
-import LoginPage from '@/components/LoginPage';
-import InventoryPage from '@/components/InventoryPage';
-import InvoicePage from '@/components/InvoicePage';
-import AdminPage from '@/components/AdminPage';
-import ProfilePage from '@/components/ProfilePage';
-import Header from '@/components/Header';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider } from './context/LanguageContext';
+import LoginPage from './components/LoginPage';
+import InventoryPage from './components/InventoryPage';
+import InvoicePage from './components/InvoicePage';
+import AdminPage from './components/AdminPage';
+import ProfilePage from './components/ProfilePage';
+import Header from './components/Header';
 
 // A wrapper for protected routes
 const PrivateRoute: React.FC<{ children: JSX.Element }> = ({ children }) => {

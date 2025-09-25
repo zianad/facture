@@ -1,5 +1,5 @@
 import Dexie, { Table } from 'dexie';
-import { Item, InvoiceData, User } from '@/types';
+import { Item, InvoiceData, User } from '../types';
 
 export class AppDatabase extends Dexie {
   items!: Table<Item, string>;
