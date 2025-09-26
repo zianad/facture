@@ -1,22 +1,29 @@
-import { db } from '@/services/db';
-import { InvoiceData } from '@/types';
+// Fix: Implement invoice service with functions to save and retrieve invoices.
+import { db, Invoice } from './db';
 
-export const invoiceService = {
-  getAllInvoices: async (userId: string): Promise<InvoiceData[]> => {
-    return db.invoices.where('userId').equals(userId).toArray();
-  },
+// This service handles invoice-related business logic.
 
-  addInvoice: async (invoice: Omit<InvoiceData, 'id'>): Promise<string> => {
-    // Note: In a real app, IDs should be handled more robustly.
-    const id = crypto.randomUUID();
-    return db.invoices.add({ ...invoice, id });
-  },
+/**
+ * Saves an extracted invoice data to the database.
+ * @param invoiceData The invoice data extracted from an image.
+ * @returns The saved invoice object with an ID.
+ */
+export async function saveInvoice(invoiceData: Omit<Invoice, 'id'>): Promise<Invoice> {
+    // Here you could add validation or other business logic
+    // before saving the invoice to the database.
+    
+    if (!invoiceData.customerName && !invoiceData.invoiceNumber) {
+        throw new Error("Invalid invoice data: missing customer name or invoice number.");
+    }
 
-  getInvoiceById: async (id: string): Promise<InvoiceData | undefined> => {
-    return db.invoices.get(id);
-  },
+    const savedInvoice = await db.invoices.add(invoiceData);
+    return savedInvoice;
+}
 
-  deleteInvoice: async (id: string): Promise<void> => {
-    return db.invoices.delete(id);
-  },
-};
+/**
+ * Retrieves all invoices.
+ * @returns A list of all saved invoices.
+ */
+export async function getAllInvoices(): Promise<Invoice[]> {
+    return await db.invoices.getAll();
+}

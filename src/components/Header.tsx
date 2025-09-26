@@ -1,29 +1,39 @@
+// Fix: Provide a functional Header component implementation.
 import React from 'react';
-import { Link, NavLink } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+import { Link } from 'react-router-dom';
+// Fix: Correct paths to context hooks.
+import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
+// Fix: Implement Header component with navigation, auth state, and language selection.
 const Header: React.FC = () => {
-    const { logout, user } = useAuth();
-    
-    // Basic styling for active NavLink
-    const activeLinkStyle = {
-        textDecoration: 'underline',
-    };
+  const { isAuthenticated, logout } = useAuth();
+  const { language, setLanguage, t } = useLanguage();
 
-    return (
-        <header style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem', borderBottom: '1px solid #ccc' }}>
-            <nav style={{ display: 'flex', gap: '1rem' }}>
-                <NavLink to="/" style={({ isActive }) => isActive ? activeLinkStyle : undefined }>Inventory</NavLink>
-                <NavLink to="/invoices" style={({ isActive }) => isActive ? activeLinkStyle : undefined }>Invoices</NavLink>
-                <NavLink to="/profile" style={({ isActive }) => isActive ? activeLinkStyle : undefined }>Profile</NavLink>
-                <NavLink to="/admin" style={({ isActive }) => isActive ? activeLinkStyle : undefined }>Admin</NavLink>
-            </nav>
-            <div>
-                <span>Welcome, {user?.username}</span>
-                <button onClick={logout} style={{ marginLeft: '1rem' }}>Logout</button>
-            </div>
-        </header>
-    );
+  return (
+    <header style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem', borderBottom: '1px solid #ccc' }}>
+      <nav>
+        <ul style={{ listStyle: 'none', display: 'flex', gap: '1rem', margin: 0, padding: 0 }}>
+          <li><Link to="/invoice">Invoices</Link></li>
+          <li><Link to="/inventory">Inventory</Link></li>
+          {isAuthenticated && <li><Link to="/profile">Profile</Link></li>}
+          {isAuthenticated && <li><Link to="/admin">Admin</Link></li>}
+        </ul>
+      </nav>
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <span>{t('greeting')}!</span>
+        <select value={language} onChange={(e) => setLanguage(e.target.value as 'en' | 'fr')}>
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+        </select>
+        {isAuthenticated ? (
+          <button onClick={logout}>Logout</button>
+        ) : (
+          <Link to="/login"><button>Login</button></Link>
+        )}
+      </div>
+    </header>
+  );
 };
 
 export default Header;

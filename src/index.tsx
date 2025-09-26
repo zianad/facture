@@ -1,13 +1,18 @@
+// Fix: Provide a standard React entry point implementation.
 import React from 'react';
-import * as ReactDOM from 'react-dom/client';
-import App from '@/App';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+// Fix: Correct path to LanguageContext based on provided file structure.
+import { LanguageProvider } from '../context/LanguageContext';
 
-const container = document.getElementById('root');
-if (container) {
-  const root = ReactDOM.createRoot(container);
-  root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
-}
+const root = ReactDOM.createRoot(
+  document.getElementById('root') as HTMLElement
+);
+root.render(
+  <React.StrictMode>
+    {/* Fix: Wrap App with LanguageProvider to provide context to all components. */}
+    <LanguageProvider>
+        <App />
+    </LanguageProvider>
+  </React.StrictMode>
+);

@@ -1,46 +1,32 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { User } from '@/types';
+// Fix: Provide a functional AuthContext implementation.
+import React, { createContext, useContext, useState, ReactNode, useMemo } from 'react';
 
+// Fix: Define the shape of the authentication context.
 interface AuthContextType {
-  user: User | null;
-  login: (username: string, password: string) => Promise<void>;
+  isAuthenticated: boolean;
+  login: () => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Fix: Implement AuthProvider to manage and provide authentication state.
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-        const storedUser = localStorage.getItem('user');
-        return storedUser ? JSON.parse(storedUser) : null;
-    } catch {
-        return null;
-    }
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Mock login function
-  const login = async (username: string, password: string) => {
-    // In a real app, this would call an API to verify credentials
-    if (username && password) {
-      const mockUser: User = { id: '1', username, password: 'hashed_password' };
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
-    } else {
-      throw new Error('Invalid credentials');
-    }
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
-  };
+  const login = () => setIsAuthenticated(true);
+  const logout = () => setIsAuthenticated(false);
   
-  const value = { user, login, logout };
+  const value = useMemo(() => ({
+    isAuthenticated,
+    login,
+    logout
+  }), [isAuthenticated]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
+// Fix: Create a custom hook for easy consumption of the AuthContext.
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
