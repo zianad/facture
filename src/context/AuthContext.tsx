@@ -1,62 +1,43 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-// Fix: Use relative path for import
+// Fix: Generating full content for the AuthContext.
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User } from '../types';
-// In a real app, you would have a proper API for this.
-// For this example, we'll hardcode a user for simplicity.
-const FAKE_USER: User = { id: '1', username: 'admin', password: 'password123' };
 
 interface AuthContextType {
-  isAuthenticated: boolean;
   user: User | null;
-  login: (password: string) => Promise<void>;
+  isAuthenticated: boolean;
+  login: (user: User) => void;
   logout: () => void;
-  // This is just an example, in a real app you'd fetch users from a DB
-  addUser: (user: Omit<User, 'id'>) => Promise<void>;
-  updateUser: (id: string, updates: Partial<User>) => Promise<void>;
-  getUsers: () => Promise<User[]>;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Check for logged in user on mount
   useEffect(() => {
-    const loggedInUser = localStorage.getItem('user');
-    if (loggedInUser) {
-      setUser(JSON.parse(loggedInUser));
-    }
+    // In a real app, you'd check for a token in localStorage or a cookie
+    // For this example, we'll start logged out.
+    setLoading(false);
   }, []);
 
-  const login = useCallback(async (password: string) => {
-    // This is a mock login. In a real app, you would verify against a backend.
-    if (password === FAKE_USER.password) {
-      localStorage.setItem('user', JSON.stringify(FAKE_USER));
-      setUser(FAKE_USER);
-    } else {
-      throw new Error('Invalid password');
-    }
-  }, []);
+  const login = (userData: User) => {
+    setUser(userData);
+    // In a real app, you'd save a token here
+  };
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('user');
+  const logout = () => {
     setUser(null);
-  }, []);
+    // In a real app, you'd clear the token here
+  };
 
-  // Mock user management functions
-  const addUser = async (newUser: Omit<User, 'id'>) => { console.log('User added:', newUser); };
-  const updateUser = async (id: string, updates: Partial<User>) => { console.log('User updated:', id, updates); };
-  const getUsers = async () => [FAKE_USER];
-  
   const value = {
-    isAuthenticated: !!user,
     user,
+    isAuthenticated: !!user,
     login,
     logout,
-    addUser,
-    updateUser,
-    getUsers
+    loading,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

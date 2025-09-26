@@ -1,29 +1,30 @@
-// Fix: Implement invoice service with functions to save and retrieve invoices.
-import { db, Invoice } from './db';
+// Fix: Generating full content for the mock invoice service.
+import { ExtractedInvoiceData } from '../types';
 
-// This service handles invoice-related business logic.
+// This is a mock invoice service.
+// In a real application, this would interact with a backend API to save/retrieve invoice data.
 
-/**
- * Saves an extracted invoice data to the database.
- * @param invoiceData The invoice data extracted from an image.
- * @returns The saved invoice object with an ID.
- */
-export async function saveInvoice(invoiceData: Omit<Invoice, 'id'>): Promise<Invoice> {
-    // Here you could add validation or other business logic
-    // before saving the invoice to the database.
-    
-    if (!invoiceData.customerName && !invoiceData.invoiceNumber) {
-        throw new Error("Invalid invoice data: missing customer name or invoice number.");
+let invoices: ExtractedInvoiceData[] = [];
+
+export const invoiceService = {
+    /**
+     * Saves an extracted invoice.
+     * @param invoiceData The data extracted from the invoice.
+     * @returns The saved invoice data with a potential ID from the backend.
+     */
+    saveInvoice: async (invoiceData: ExtractedInvoiceData): Promise<ExtractedInvoiceData> => {
+        console.log('Saving invoice:', invoiceData);
+        invoices.push(invoiceData);
+        // In a real app, you might get an ID back from the server
+        return Promise.resolve(invoiceData);
+    },
+
+    /**
+     * Retrieves all saved invoices.
+     * @returns A list of all invoices.
+     */
+    getInvoices: async (): Promise<ExtractedInvoiceData[]> => {
+        console.log('Fetching invoices');
+        return Promise.resolve(invoices);
     }
-
-    const savedInvoice = await db.invoices.add(invoiceData);
-    return savedInvoice;
-}
-
-/**
- * Retrieves all invoices.
- * @returns A list of all saved invoices.
- */
-export async function getAllInvoices(): Promise<Invoice[]> {
-    return await db.invoices.getAll();
-}
+};

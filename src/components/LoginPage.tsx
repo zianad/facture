@@ -1,46 +1,56 @@
+// Fix: Generating full content for the LoginPage component.
 import React, { useState } from 'react';
-// Fix: Use relative path for import
 import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { User } from '../types';
 
 const LoginPage: React.FC = () => {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const { login, isAuthenticated } = useAuth();
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const { login } = useAuth();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    try {
-      await login(password);
-    } catch (err) {
-      setError('Login failed. Please check the password.');
-    }
-  };
+    const handleLogin = (e: React.FormEvent) => {
+        e.preventDefault();
+        // This is a mock login. In a real app, you would call an API.
+        if (username && password) {
+            const mockUser: User = {
+                id: '1',
+                username: username,
+                email: `${username}@example.com`,
+                role: username.toLowerCase() === 'admin' ? 'admin' : 'user',
+            };
+            login(mockUser);
+        } else {
+            alert('Please enter username and password');
+        }
+    };
 
-  if (isAuthenticated) {
-    return <Navigate to="/invoice" replace />;
-  }
-
-  return (
-    <div>
-      <form onSubmit={handleSubmit}>
-        <h2>Login</h2>
+    return (
         <div>
-          <label htmlFor="password">Password:</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+            <h1>Login</h1>
+            <form onSubmit={handleLogin}>
+                <div>
+                    <label htmlFor="username">Username:</label>
+                    <input
+                        id="username"
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="admin or any other username"
+                    />
+                </div>
+                <div>
+                    <label htmlFor="password">Password:</label>
+                    <input
+                        id="password"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                    />
+                </div>
+                <button type="submit">Login</button>
+            </form>
         </div>
-        <button type="submit">Log In</button>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-      </form>
-    </div>
-  );
+    );
 };
 
 export default LoginPage;
