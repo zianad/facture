@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-type Language = 'en' | 'fr';
+// Fix: Add 'ar' to support Arabic language
+type Language = 'en' | 'fr' | 'ar';
 
 interface LanguageContextType {
   language: Language;
@@ -10,9 +11,32 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+// Fix: Add more complete translations for all languages
 const translations: Record<Language, Record<string, string>> = {
-    en: { greeting: 'Hello' },
-    fr: { greeting: 'Bonjour' },
+    en: {
+        greeting: 'Hello',
+        invoices: 'Invoices',
+        inventory: 'Inventory',
+        profile: 'Profile',
+        welcomeMessage: 'Welcome, {username}',
+        logout: 'Logout',
+    },
+    fr: {
+        greeting: 'Bonjour',
+        invoices: 'Factures',
+        inventory: 'Inventaire',
+        profile: 'Profil',
+        welcomeMessage: 'Bienvenue, {username}',
+        logout: 'Déconnexion',
+    },
+    ar: {
+        greeting: 'مرحبا',
+        invoices: 'الفواتير',
+        inventory: 'المخزون',
+        profile: 'الملف الشخصي',
+        welcomeMessage: 'مرحباً، {username}',
+        logout: 'تسجيل الخروج',
+    },
 };
 
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {

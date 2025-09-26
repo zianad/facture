@@ -1,18 +1,16 @@
-// Fix: Provide a standard React entry point implementation.
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+// Fix: Use relative path for import
 import App from './App';
-// Fix: Correct path to LanguageContext based on provided file structure.
-import { LanguageProvider } from '../context/LanguageContext';
+// Fix: Removed unused LanguageProvider import
 
-const root = ReactDOM.createRoot(
-  document.getElementById('root') as HTMLElement
-);
+const rootElement = document.getElementById('root');
+if (!rootElement) throw new Error('Failed to find the root element');
+
+const root = ReactDOM.createRoot(rootElement);
+
 root.render(
   <React.StrictMode>
-    {/* Fix: Wrap App with LanguageProvider to provide context to all components. */}
-    <LanguageProvider>
-        <App />
-    </LanguageProvider>
-  </React.StrictMode>
+    <App />
+  </React.StrictMode>,
 );

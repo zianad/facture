@@ -1,32 +1,44 @@
-// Fix: Provide a functional LoginPage component implementation.
-import React from 'react';
-// Fix: Correct path to AuthContext.
+import React, { useState } from 'react';
+// Fix: Use relative path for import
 import { useAuth } from '../context/AuthContext';
+import { Navigate } from 'react-router-dom';
 
-// Fix: Implement LoginPage component to demonstrate authentication flow.
 const LoginPage: React.FC = () => {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const { login, isAuthenticated } = useAuth();
 
-  const handleLogin = () => {
-    // In a real app, you'd have form fields and validation.
-    // This is a simple simulation.
-    login();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await login(password);
+    } catch (err) {
+      setError('Login failed. Please check the password.');
+    }
   };
 
   if (isAuthenticated) {
-    return (
-        <div>
-            <h1>Already Logged In</h1>
-            <p>You are already logged in. Navigate using the header.</p>
-        </div>
-    );
+    return <Navigate to="/invoice" replace />;
   }
 
   return (
     <div>
-      <h1>Login</h1>
-      <p>Please log in to continue to protected pages.</p>
-      <button onClick={handleLogin}>Log In</button>
+      <form onSubmit={handleSubmit}>
+        <h2>Login</h2>
+        <div>
+          <label htmlFor="password">Password:</label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+        <button type="submit">Log In</button>
+        {error && <p style={{ color: 'red' }}>{error}</p>}
+      </form>
     </div>
   );
 };

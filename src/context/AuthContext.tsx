@@ -1,32 +1,67 @@
-// Fix: Provide a functional AuthContext implementation.
-import React, { createContext, useContext, useState, ReactNode, useMemo } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+// Fix: Use relative path for import
+import { User } from '../types';
+// In a real app, you would have a proper API for this.
+// For this example, we'll hardcode a user for simplicity.
+const FAKE_USER: User = { id: '1', username: 'admin', password: 'password123' };
 
-// Fix: Define the shape of the authentication context.
 interface AuthContextType {
   isAuthenticated: boolean;
-  login: () => void;
+  user: User | null;
+  login: (password: string) => Promise<void>;
   logout: () => void;
+  // This is just an example, in a real app you'd fetch users from a DB
+  addUser: (user: Omit<User, 'id'>) => Promise<void>;
+  updateUser: (id: string, updates: Partial<User>) => Promise<void>;
+  getUsers: () => Promise<User[]>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Fix: Implement AuthProvider to manage and provide authentication state.
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
 
-  const login = () => setIsAuthenticated(true);
-  const logout = () => setIsAuthenticated(false);
+  // Check for logged in user on mount
+  useEffect(() => {
+    const loggedInUser = localStorage.getItem('user');
+    if (loggedInUser) {
+      setUser(JSON.parse(loggedInUser));
+    }
+  }, []);
+
+  const login = useCallback(async (password: string) => {
+    // This is a mock login. In a real app, you would verify against a backend.
+    if (password === FAKE_USER.password) {
+      localStorage.setItem('user', JSON.stringify(FAKE_USER));
+      setUser(FAKE_USER);
+    } else {
+      throw new Error('Invalid password');
+    }
+  }, []);
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('user');
+    setUser(null);
+  }, []);
+
+  // Mock user management functions
+  const addUser = async (newUser: Omit<User, 'id'>) => { console.log('User added:', newUser); };
+  const updateUser = async (id: string, updates: Partial<User>) => { console.log('User updated:', id, updates); };
+  const getUsers = async () => [FAKE_USER];
   
-  const value = useMemo(() => ({
-    isAuthenticated,
+  const value = {
+    isAuthenticated: !!user,
+    user,
     login,
-    logout
-  }), [isAuthenticated]);
+    logout,
+    addUser,
+    updateUser,
+    getUsers
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Fix: Create a custom hook for easy consumption of the AuthContext.
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
